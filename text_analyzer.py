@@ -42,7 +42,7 @@ def export_to_csv(word_freq, filename):
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
-    csv_filename = os.path.join(results_folder, f"{os.path.splitext(filename)[0]}_word_frequency.csv")
+    csv_filename = os.path.join(results_folder, f"{os.path.splitext(os.path.basename(filename))[0]}_word_frequency.csv")
 
     try:
         with open(csv_filename, 'w', newline='', encoding='utf-8') as csvfile:
