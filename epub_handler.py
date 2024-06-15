@@ -1,5 +1,5 @@
 # GRIEF
-# This is not working as I expect it to be. 
+# This is not working as I expect it to be.
 
 import os
 import string
@@ -89,4 +89,3 @@ def export_to_csv(word_freq, filename):
 
     except IOError:
         print(f"Error writing to CSV file '{csv_filename}'")
-

@@ -8,7 +8,7 @@ def main():
     if len(sys.argv) != 2:
         print("Usage: python main.py <file_name>")
         return
-    
+
     filename = sys.argv[1]
 
     if filename.endswith(".epub"):
@@ -17,7 +17,7 @@ def main():
         with open("books/tmp.txt", "w") as file:
             file.write(extracted_text)
         filename="books/tmp.txt"
-    
+
     text_freq = analyze_text_file(filename)
     if text_freq:
         export_to_csv(text_freq, filename)

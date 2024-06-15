@@ -52,7 +52,7 @@ def export_to_csv(word_freq, filename):
             csv_writer.writerow(['Word', 'Frequency'])
             for word, freq in word_freq.most_common():
                 csv_writer.writerow([word, freq])
-        
+
         print(f"Word frequency data exported to '{csv_filename}'")
 
     except IOError:
