@@ -3,7 +3,6 @@
 Inspired by the dialogue (*for shits and giggles!*)
 
 > "What is the reading of a text, in fact, except the recording of certain thematic recurrences, certain insistences of form and meaning? An electronic reading supplies me with a list of frequencies, which I have only to glance at to form an idea of the problems the book suggests to my critical study."
-
 > \- Lotaria \(from *If On A Winter's Night A Traveller*)
 
 
