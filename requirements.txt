@@ -1,2 +1,2 @@
-EbookLib
+epub2txt
 matplotlib

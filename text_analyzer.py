@@ -1,5 +1,6 @@
 import string
 import os
+import sys
 import csv
 from collections import Counter
 import matplotlib.pyplot as plt
@@ -42,6 +43,7 @@ def export_to_csv(word_freq, filename):
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
+    filename = filename = sys.argv[1]
     csv_filename = os.path.join(results_folder, f"{os.path.splitext(os.path.basename(filename))[0]}_word_frequency.csv")
 
     try:
