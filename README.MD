@@ -20,7 +20,10 @@ $ pip install -r requirements.txt
 * Run main file
 ```
 $ py main.py books/<filename>
+OR
+$ py main.py <filepath>
 ```
+
 * Results are stored in the results folder as a CSV file, and the top 50 words are visualized as a bar graph.
 
 ## Misc
