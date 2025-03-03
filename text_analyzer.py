@@ -1,7 +1,4 @@
-import string
-import os
-import sys
-import csv
+import string, os , sys, csv
 from collections import Counter
 import matplotlib.pyplot as plt
 
