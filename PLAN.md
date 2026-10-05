@@ -6,7 +6,7 @@ The thread tying this together: **test Lotaria's claim.** Can a list of word fre
 
 ---
 
-## Phase 0: Input preprocessing
+## Phase 0: Input preprocessing ✅
 
 **Goal:** any supported input file → one clean, tokenised, cached `Document`. Everything later (counts, the app, the LLM, label comparison) uses the `Document` and never touches raw files again.
 
@@ -148,26 +148,28 @@ Per section (and section titles); case is preserved. Each step can be switched o
 - [x] Cache key = SHA-256 of file bytes + options + library versions (+ spaCy model version when lemmatising) + a hash of the `wfa` pipeline source files, so editing any rule invalidates old entries automatically (no manual version bump). Stored as gzipped JSON in `.cache/documents/` (gitignored); written atomically; corrupt entries are discarded and recomputed. `clear_cache()` available.
 - [x] `main.py` uses `preprocess()`; `--no-cache` forces reprocessing. A cached 216k-word lemmatised run drops from ~12 s to well under a second.
 
-**0.7 Report & CLI**
-- [ ] `report.py`: per-stage word counts, % removed as boilerplate, language, metadata found, warnings, top-N tokens. This is how a real book gets checked without reading it.
-- [ ] `main.py` → `preprocess()` → counts → CSV, named from `metadata.title` / the input file. This fixes the `sys.argv` and `tmp.txt` bugs.
-- [ ] Flags: `--report` (print summary), `--plot` (keep the matplotlib chart until Phase 1), `--stopwords`, `--lemmatize`.
-- [ ] You run it on the books in `books/` locally and regenerate `results/`.
+**0.7 Report & CLI (`report.py`, `cli.py`)**
+- [x] `report.py`: `summary()` (metadata, encoding, words removed per cleaning rule, token counts and drops, top-N words, timing/cache, warnings). This is how a real book gets checked without reading it. Also `write_csv()` (`Word, Frequency, Per10k`, named from the book title), `write_removed()`, and the temporary matplotlib `plot_top_words()`.
+- [x] `cli.py`, installed as the `wfa` command (`main.py` is a shim): several files per run, `-o/--out`, `--stopwords`, `--lemmatize`, `--remove-pattern`, `--top`, `--quiet`, `--no-csv`, `--dump-removed`, `--plot` (now opt-in), `--no-cache`. One bad file is reported without stopping the rest; exit code 1 if any failed.
+- [x] CSV names carry the options (`<title>_stop_lemma_word_frequency.csv`), so variants don't overwrite each other.
+- [x] `text_analyzer.py` and the stale `results/*.csv` (made by the old code) removed.
+- [ ] **You:** run on `books/` and regenerate `results/`, e.g. `wfa books/*.txt books/*.epub --stopwords --dump-removed`, then skim the summaries and `*_removed.txt` files.
 
-**0.8 Tests (synthetic fixtures only; written once the pipeline settles)**
-- [ ] Fixtures written by hand or by code in the tests:
-  - a fake Gutenberg file with header and licence
-  - a BOM + CRLF file and a cp1252 file
-  - a file containing mojibake
-  - a text with `--` dashes and hyphenated line breaks
-  - a text with a repeated watermark line
-  - an EPUB built with ebooklib inside the test (several chapters, a nav page, an image-only page)
-- [ ] Assertions: licence and watermark words gone, no merged words, `don't` kept as one token, no BOM in first token, metadata extracted, spine order preserved, warnings raised, cache hit on the second run.
+**0.8 Tests (synthetic fixtures only)**
+- [x] `tests/helpers.py`: invented prose, a fake Gutenberg file, an EPUB built with ebooklib (spine order ≠ add order, nav page, title page in the guide, image-only page, drop-cap markup), a `make_doc()` factory.
+- [x] One file per stage, 70 tests in ~1 s:
+  - `test_loaders.py`: BOM/CRLF, cp1252 and cp1251 detection, Gutenberg header, format detection and rejection, EPUB metadata, spine order, skipped pages, inline markup, image-only warning.
+  - `test_cleaning.py`: wrapper markers (single, across sections, custom), front/back-matter titles (and ordinary titles kept), edge notices removed, notice words mid-book kept, dialogue kept, scan stops at a chapter heading, page numbers, watermarks, repeated dialogue/headings kept, user patterns, stats, heavy-removal warning.
+  - `test_normalize.py`: mojibake, ligatures, symbols without `TM`, quotes, line-break hyphens, dashes, emphasis, URLs/emails, zero-width characters, bullets, paragraph breaks, options off.
+  - `test_tokenize.py`: contractions, compounds, possessives, numbers, punctuation, case, stop words (incl. contractions), minimum length, lemmas, chunking, empty input.
+  - `test_pipeline.py`: end-to-end, cache hit, per-options entries, changed file, renamed copy, corrupt entry, cache off, clear cache.
+  - `test_cli.py`: several files, CSV contents and names, missing file, `--dump-removed`, `--no-csv`, `--lemmatize` suffix.
+- [x] Bugs found and fixed: the spaced-hyphen rule also removed `- ` bullets at line starts; with `drop_numbers=False`, pure numbers were still dropped as punctuation.
 
 ### Done when
-- `python main.py <file> --report` works on a fresh environment created from `pyproject.toml`.
-- `pytest` passes on the synthetic fixtures.
-- You run the report on your sample books and the numbers look sane (boilerplate removed, no obvious noise in the top tokens).
+- [x] `wfa <files>` (or `python main.py <files>`) works on a fresh environment created from `pyproject.toml`.
+- [x] `pytest` passes on the synthetic fixtures (70 tests).
+- [x] **You:** run `wfa` on your books and check the summaries look sane (boilerplate removed, no obvious noise in the top words).
 
 ---
 

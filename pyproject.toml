@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfa"
+version = "0.1.0"
+description = "Word frequency analysis of books, inspired by Lotaria in Calvino's If on a winter's night a traveler"
+readme = "README.MD"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "charset-normalizer>=3.3",
+    "ebooklib>=0.17.1",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "ftfy>=6.2",
+    "spacy>=3.7,<4",
+    "textacy>=0.13",
+    # Temporary: `--plot` chart until the Streamlit app replaces it (Phase 1).
+    "matplotlib",
+]
+
+[project.scripts]
+wfa = "wfa.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::FutureWarning:ebooklib.*"]
