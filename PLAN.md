@@ -175,20 +175,22 @@ Per section (and section titles); case is preserved. Each step can be switched o
 
 ## Phase 1: Analysis core + single-window app (Streamlit)
 
-- [ ] `wfa/analysis.py`: pure functions over a `Document` (counts, top-N, basic statistics).
-- [ ] `app.py` with Streamlit; launch with `streamlit run app.py`.
-- [ ] Layout: a **sidebar** with the book library and upload (txt/epub), plus **tabs** for each view:
-  - [ ] **Frequencies**: interactive Plotly bar chart, top-N slider, stop-word and lemma toggles, search for a word, CSV download.
-  - [ ] **Themes** (Phase 2)
-  - [ ] **Reader labels** (Phase 3)
-  - [ ] **Compare** (Phase 3/4)
-- [ ] Use `st.cache_data` on top of the Phase 0 cache so analyses aren't recomputed.
-- [ ] Keep the command line as a thin wrapper over `wfa/` for scripted runs.
+- [x] `wfa/analysis.py`: pure functions over a `Document`: `frequency_table()` (rank, word, count, per 10,000 words; ties alphabetical), `lookup()` (exact + partial matches), `book_stats()` (words, unique, richness, words used once, mean word length, sections, share removed by cleaning). `report.py` now uses it.
+- [x] `app.py` (root shim) → `wfa/app.py`; launch with `streamlit run app.py`.
+- [x] **Sidebar:** no folder option; the library is always `books/` (`WFA_LIBRARY` env var overrides it for tests/scripts). Upload (.txt/.epub, saved into the library; same name with different content gets a numbered copy), book picker, processing toggles (stop words on by default, word roots), extra patterns to remove.
+- [x] **Main view (Frequencies tab) = Themes on top, frequencies directly below** (themes not a separate tab), so the project's question is visible on one screen:
+  - [x] **Frequencies:** stat tiles; interactive Plotly bar chart (single series, validated colour for light and dark, ≤ 24 px bars with rounded ends, hairline grid, hover tooltip with rank/count/per-10k); words-shown slider (10–200); word search; CSV download; full table in an expander.
+  - [ ] **Themes** section above the chart: "from the frequencies only" vs "from the full text" columns (placeholders until Phase 2)
+- [x] **Other tabs:** Reader labels (placeholder until Phase 3), Compare (placeholder until Phases 3/4)
+- [x] `st.cache_data` per (file, modification time, settings) on top of the Phase 0 disk cache.
+- [x] The `wfa` command line stays as the scripted interface; matplotlib and `--plot` removed (the app replaces the chart).
+- [ ] Tests for `analysis.py` and an `AppTest` smoke test, once the app settles.
 
 ## Phase 2: Themes via LLM
 
 A single structured API call per mode; no agent loop needed. This is the first phase that sends book text off the machine. Make it explicit, opt-in per book.
 
+- [ ] Results render in the **Themes section above the frequency chart** on the main view (two columns: Lotaria mode, full read).
 - [ ] `wfa/themes.py` using the Anthropic Python SDK (`claude-opus-5-5`), with structured JSON output: themes, a one-paragraph summary, genre guesses, key characters.
 - [ ] Two modes:
 

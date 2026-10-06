@@ -26,7 +26,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-csv", action="store_true", help="don't write the frequency CSV")
     parser.add_argument("--dump-removed", action="store_true",
                         help="write everything the cleaner removed to <out>/<title>_removed.txt")
-    parser.add_argument("--plot", action="store_true", help="show a chart of the top 50 words")
     parser.add_argument("--no-cache", action="store_true", help="reprocess even if a cached result exists")
     return parser
 
@@ -54,8 +53,6 @@ def main(argv: list[str] | None = None) -> int:
             print(f"CSV: {report.write_csv(doc, args.out, suffix, use_lemmas=args.lemmatize)}")
         if args.dump_removed:
             print(f"Removed text: {report.write_removed(doc, args.out)}")
-        if args.plot:
-            report.plot_top_words(doc, use_lemmas=args.lemmatize)
         print()
     return 1 if failures else 0
 

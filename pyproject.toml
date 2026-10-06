@@ -16,8 +16,8 @@ dependencies = [
     "ftfy>=6.2",
     "spacy>=3.7,<4",
     "textacy>=0.13",
-    # Temporary: `--plot` chart until the Streamlit app replaces it (Phase 1).
-    "matplotlib",
+    "streamlit>=1.40",
+    "plotly>=5.19",
 ]
 
 [project.scripts]

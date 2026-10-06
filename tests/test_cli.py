@@ -28,8 +28,9 @@ def test_processes_several_files_and_writes_csvs(books, tmp_path, capsys):
     assert csvs == ["A_Test_Book_Being_a_Long_Subtitle_stop_word_frequency.csv", "Synthetic_Novel_stop_word_frequency.csv"]
     with (out / csvs[0]).open(encoding="utf-8") as f:
         rows = list(csv.reader(f))
-    assert rows[0] == ["Word", "Frequency", "Per10k"]
-    assert rows[1][0] == "rain" and int(rows[1][1]) == 10
+    assert rows[0] == ["Rank", "Word", "Frequency", "Per10k"]
+    assert rows[1][0] == "1"
+    assert next(r for r in rows if r[1] == "rain")[2] == "10"
 
     printed = capsys.readouterr().out
     assert "== A Test Book Being a Long Subtitle by Jane Q. Writer" in printed
