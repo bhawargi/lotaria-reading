@@ -1,13 +1,15 @@
-"""Streamlit app: one window, a book library in the sidebar. The main view puts a book's themes
-directly above its word frequencies, which is the project's question in one screen: do the
-frequencies tell you what the book is about? Further analyses live in their own tabs.
+"""Streamlit app: one window. It opens on an upload page; once a book is uploaded, the main
+view puts Lotaria's electronic reading (themes) directly above the book's word frequencies,
+which is the project's question in one screen: do the frequencies tell you what the book is
+about? Further analyses live in their own tabs.
 
-Run with `streamlit run app.py` from the repository root. The library folder is `books/`
-(override with the WFA_LIBRARY environment variable).
+Run with `streamlit run app.py` from the repository root. Uploaded books are kept by content
+hash under `.cache/uploads/`, so re-uploading the same book reuses its cached results.
 """
 
 from __future__ import annotations
 
+import hashlib
 import os
 from dataclasses import asdict
 from pathlib import Path
@@ -16,15 +18,21 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from wfa import analysis, report
+from wfa import analysis, report, themes
 from wfa.cleaning import CleaningOptions
 from wfa.document import Document
 from wfa.loaders import UnsupportedFormatError
 from wfa.pipeline import PreprocessOptions, preprocess
 from wfa.tokenize import TokenizeOptions
 
-LIBRARY = Path(os.environ.get("WFA_LIBRARY", "books"))
+UPLOAD_DIR = Path(".cache") / "uploads"
 SUPPORTED = (".txt", ".epub")
+
+ABOUT = (
+    "Upload an English book (.txt or .epub) to see which words it leans on most. "
+    "Licences, front matter and page clutter are stripped first. Then a local LLM, shown only "
+    "the most frequent words, guesses what the book is about. Everything runs on your machine."
+)
 
 # Chart tokens (single series; validated against Streamlit's light and dark backgrounds).
 CHART = {
@@ -37,17 +45,18 @@ BAR_GAP = 0.3
 
 def run() -> None:
     st.set_page_config(page_title="Word Frequency Analysis", layout="wide")
-    path, settings = sidebar()
 
-    if path is None:
-        st.title("Word Frequency Analysis")
-        st.info("Choose a book from the library in the sidebar, or upload a .txt or .epub file.")
+    book = st.session_state.get("book")
+    if book is None:
+        upload_page()
         return
 
+    path = Path(book["path"])
+    settings = sidebar(book["name"])
     try:
-        doc = load_document(str(path), path.stat().st_mtime, **settings)
+        doc = load_document(str(path), **settings)
     except (OSError, UnsupportedFormatError) as e:
-        st.error(f"Could not read {path.name}: {e}")
+        st.error(f"Could not read {book['name']}: {e}")
         return
 
     header(doc)
@@ -62,28 +71,31 @@ def run() -> None:
         st.info("Side-by-side comparison of word lists, themes and labels arrives in Phases 3–4.")
 
 
-# --- Sidebar --------------------------------------------------------------
+# --- Upload page and sidebar ----------------------------------------------
 
 
-def sidebar() -> tuple[Path | None, dict]:
+def upload_page() -> None:
+    st.title("Word Frequency Analysis")
+    st.subheader("About")
+    st.markdown(ABOUT)
+    uploaded = st.file_uploader(
+        "Upload a book", type=[ext.lstrip(".") for ext in SUPPORTED],
+        key=f"uploader_{st.session_state.get('uploads', 0)}",
+    )
+    if uploaded is not None:
+        path = save_upload(uploaded.name, uploaded.getvalue())
+        st.session_state["book"] = {"name": uploaded.name, "path": str(path)}
+        st.rerun()
+
+
+def sidebar(book_name: str) -> dict:
     with st.sidebar:
-        st.header("Library")
-        uploaded = st.file_uploader("Add a book", type=[ext.lstrip(".") for ext in SUPPORTED])
-        if uploaded is not None:
-            saved = save_upload(LIBRARY, uploaded.name, uploaded.getvalue())
-            st.session_state["selected_book"] = saved.name
-
-        books = list_books(LIBRARY)
-        if not books:
-            st.caption("No books yet. Upload a .txt or .epub file above.")
-            path = None
-        else:
-            names = [b.name for b in books]
-            current = st.session_state.get("selected_book")
-            index = names.index(current) if current in names else 0
-            choice = st.selectbox("Book", names, index=index)
-            st.session_state["selected_book"] = choice
-            path = LIBRARY / choice
+        st.header("Book")
+        st.markdown(f"**{book_name}**")
+        if st.button("Upload a different book", width="stretch"):
+            del st.session_state["book"]
+            st.session_state["uploads"] = st.session_state.get("uploads", 0) + 1  # fresh, empty uploader
+            st.rerun()
 
         st.header("Processing")
         stopwords = st.toggle("Remove stop words", value=True,
@@ -95,41 +107,29 @@ def sidebar() -> tuple[Path | None, dict]:
             help="One regular expression per line, e.g. a watermark. Removed everywhere in the book.",
         )
 
-    settings = {
+    return {
         "stopwords": stopwords,
         "lemmatize": lemmatize,
         "patterns": tuple(p.strip() for p in patterns.splitlines() if p.strip()),
     }
-    return path, settings
 
 
-def list_books(library: Path) -> list[Path]:
-    if not library.is_dir():
-        return []
-    return sorted((p for p in library.iterdir() if p.suffix.lower() in SUPPORTED and p.is_file()),
-                  key=lambda p: p.name.lower())
-
-
-def save_upload(library: Path, name: str, data: bytes) -> Path:
-    """Save into the library; an existing file with the same name but different content gets a suffix."""
-    library.mkdir(parents=True, exist_ok=True)
-    target = library / Path(name).name
-    stem, suffix = target.stem, target.suffix
-    n = 1
-    while target.exists() and target.read_bytes() != data:
-        n += 1
-        target = library / f"{stem} ({n}){suffix}"
-    if not target.exists():
-        target.write_bytes(data)
-    return target
+def save_upload(name: str, data: bytes, upload_dir: Path = UPLOAD_DIR) -> Path:
+    """Keep the upload under its content hash (same book, same folder), with its original name."""
+    folder = upload_dir / hashlib.sha256(data).hexdigest()[:16]
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / Path(name).name
+    if not path.exists():
+        path.write_bytes(data)
+    return path
 
 
 # --- Data -----------------------------------------------------------------
 
 
 @st.cache_data(show_spinner="Reading the book…", max_entries=32)
-def load_document(path: str, mtime: float, stopwords: bool, lemmatize: bool, patterns: tuple[str, ...]) -> Document:
-    """Memoised per (file, modification time, settings); the disk cache sits underneath."""
+def load_document(path: str, stopwords: bool, lemmatize: bool, patterns: tuple[str, ...]) -> Document:
+    """Memoised per (upload, settings); uploads are content-addressed, and the disk cache sits underneath."""
     options = PreprocessOptions(
         cleaning=CleaningOptions(extra_patterns=list(patterns)),
         tokenize=TokenizeOptions(stopwords=stopwords, lemmatize=lemmatize),
@@ -198,18 +198,57 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
 
 
 def themes_view(doc: Document) -> None:
-    st.subheader("Themes")
+    st.subheader("Lotaria's electronic reading")
     st.caption(
-        "What is this book about? Two readings will sit here side by side: one from the word "
-        "frequencies below alone (Lotaria's \"electronic reading\"), and one from the full text."
+        "Inspired by Lotaria, the mad machine-reader of Calvino's *If on a winter's night a traveller*. "
+        "An LLM sees only the top words below, and guesses the rest."
     )
-    lotaria, full = st.columns(2)
-    with lotaria:
-        st.markdown("**From the frequencies only**")
-        st.info("Arrives in Phase 2.")
-    with full:
-        st.markdown("**From the full text**")
-        st.info("Arrives in Phase 2.")
+
+    try:
+        provider = llm_provider()
+        models = provider.available_models()
+    except themes.ThemeError as e:
+        st.warning(str(e))
+        return
+    if not models:
+        st.info(f"No models installed in {provider.name}. Pull one, e.g. `ollama pull llama3.2`, then reload.")
+        return
+
+    preferred = st.session_state.get("theme_model") or os.environ.get("WFA_LLM_MODEL")
+    controls = st.columns([3, 1.4, 3])
+    model = controls[0].selectbox(
+        "Model", models, index=models.index(preferred) if preferred in models else 0,
+        help=f"Models available in your local {provider.name} installation.",
+    )
+    st.session_state["theme_model"] = model
+
+    words = themes.top_words(doc)  # the only thing a model ever receives
+    result = themes.cached_result(words, model, provider.name)
+    controls[1].markdown("&nbsp;")  # align the button with the select box
+    if controls[1].button("Find themes" if result is None else "Run again", width="stretch"):
+        with st.spinner(f"Asking {model}…"):
+            try:
+                result = themes.infer_themes(words, model, provider, refresh=result is not None)
+            except themes.ThemeError as e:
+                st.error(str(e))
+                return
+
+    if result is None:
+        return
+    st.markdown(result.summary)
+    if result.themes:
+        st.markdown(" ".join(f":gray-badge[{t.replace(']', ')')}]" for t in result.themes))
+    st.caption(f"{result.model} via {result.provider}, from the top {result.words_sent} words · {result.created[:10]}")
+    with st.expander(f"The {len(words)} words shared with the model"):
+        st.dataframe(
+            pd.DataFrame(words, columns=["Word", "Count"]), hide_index=True, width="stretch",
+            column_config={"Count": st.column_config.NumberColumn(format="%d")},
+        )
+
+
+@st.cache_resource
+def llm_provider() -> themes.Provider:
+    return themes.get_provider()
 
 
 def search_results(table: list[analysis.WordRow], query: str) -> None:

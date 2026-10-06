@@ -1,6 +1,6 @@
 # Project Plan
 
-The thread tying this together: **test Lotaria's claim.** Can a list of word frequencies tell you what a book is about? We compare three readings of each book: a frequency-only LLM reading ("Lotaria mode"), a full-text LLM reading, and the labels real readers give it.
+The thread tying this together: **test Lotaria's claim.** Can a list of word frequencies tell you what a book is about? We compare an LLM's reading of each book's top words alone (the model **never sees the book's text, title or author**) with the labels real readers give it.
 
 **Order:** Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 (README, last).
 
@@ -177,30 +177,31 @@ Per section (and section titles); case is preserved. Each step can be switched o
 
 - [x] `wfa/analysis.py`: pure functions over a `Document`: `frequency_table()` (rank, word, count, per 10,000 words; ties alphabetical), `lookup()` (exact + partial matches), `book_stats()` (words, unique, richness, words used once, mean word length, sections, share removed by cleaning). `report.py` now uses it.
 - [x] `app.py` (root shim) → `wfa/app.py`; launch with `streamlit run app.py`.
-- [x] **Sidebar:** no folder option; the library is always `books/` (`WFA_LIBRARY` env var overrides it for tests/scripts). Upload (.txt/.epub, saved into the library; same name with different content gets a numbered copy), book picker, processing toggles (stop words on by default, word roots), extra patterns to remove.
+- [x] **Upload-first, no default book:** the app opens on an upload page (title, short About paragraph, uploader). Uploads are kept by content hash in `.cache/uploads/` (not `books/`), so the same book reuses its cached results. Once a book is loaded, the sidebar shows its name, an **Upload a different book** button, and the processing toggles (stop words on by default, word roots, extra patterns to remove).
 - [x] **Main view (Frequencies tab) = Themes on top, frequencies directly below** (themes not a separate tab), so the project's question is visible on one screen:
   - [x] **Frequencies:** stat tiles; interactive Plotly bar chart (single series, validated colour for light and dark, ≤ 24 px bars with rounded ends, hairline grid, hover tooltip with rank/count/per-10k); words-shown slider (10–200); word search; CSV download; full table in an expander.
-  - [ ] **Themes** section above the chart: "from the frequencies only" vs "from the full text" columns (placeholders until Phase 2)
+  - [x] **"Lotaria's electronic reading"** section (themes) above the chart, with a one-line caption nodding to Lotaria in Calvino's *If on a winter's night a traveller*
 - [x] **Other tabs:** Reader labels (placeholder until Phase 3), Compare (placeholder until Phases 3/4)
 - [x] `st.cache_data` per (file, modification time, settings) on top of the Phase 0 disk cache.
 - [x] The `wfa` command line stays as the scripted interface; matplotlib and `--plot` removed (the app replaces the chart).
 - [ ] Tests for `analysis.py` and an `AppTest` smoke test, once the app settles.
 
-## Phase 2: Themes via LLM
+## Phase 2: Themes via an external LLM
 
-A single structured API call per mode; no agent loop needed. This is the first phase that sends book text off the machine. Make it explicit, opt-in per book.
+The app calls an external LLM (not Claude Code) with **only the top words** of a book: Lotaria's "electronic reading". Every call returns **both** a summary of at most three sentences **and** a list of theme words.
 
-- [ ] Results render in the **Themes section above the frequency chart** on the main view (two columns: Lotaria mode, full read).
-- [ ] `wfa/themes.py` using the Anthropic Python SDK (`claude-opus-5-5`), with structured JSON output: themes, a one-paragraph summary, genre guesses, key characters.
-- [ ] Two modes:
-
-  | Mode | Input | Rough cost (at $4 per million input tokens) | Purpose |
-  |---|---|---|---|
-  | **Lotaria mode** | Top ~300 words (stop words removed) + basic statistics | about $0.01 | Tests the quote directly |
-  | **Full read** | Whole cleaned text (fits in the 1M context; a 250k-word book ≈ 330k tokens) | about $1.30 for a 250k-word book | Reference reading |
-
-- [ ] Save results per book hash; show the cost estimate (token count) before running a full read.
-- [ ] API key from the environment (`ANTHROPIC_API_KEY`), never committed.
+- [x] `wfa/themes.py`:
+  - **Pluggable providers** (`Provider` protocol: `available_models()`, `complete_json()`), chosen by `WFA_LLM_PROVIDER` (default `ollama`).
+  - **First backend: local Ollama** via the official `ollama` client (`OLLAMA_HOST`, default `localhost:11434`). Nothing leaves the machine; free.
+  - **Input:** top 100 content words with counts (spaCy stop words and contractions always excluded, whatever the app's toggle). **The model never sees the book's text, title or author**, by construction: `top_words(doc)` is the only place a `Document` is read; `infer_themes()` / `cached_result()` accept only `(word, count)` pairs, validated (single words, ≤ 40 characters, ≤ 500 pairs).
+  - **Instructions hidden:** system prompt, user-message template and response schema live in `wfa/prompts.py`, not in the UI; `prompts.VERSION` invalidates cached answers when they change.
+  - **Output:** JSON schema passed to the model (`summary`, `themes`), then validated: summary trimmed to 3 sentences, themes de-duplicated, cleaned, max 10.
+  - **Cache:** `.cache/themes/`, keyed by provider + model + exact prompt + schema + `PROMPT_VERSION`. "Run again" refreshes the cached answer.
+  - Friendly errors: server not running, model not installed, malformed reply.
+- [x] App: **Themes section above the frequency chart**. Model picker (installed Ollama models; `WFA_LLM_MODEL` sets a default), **Find themes** / **Run again** button, summary paragraph + theme badges, provenance line, and an expander listing only the words and counts shared with the model.
+- [ ] **You:** start Ollama (`ollama serve` or the app) and pull a model, e.g. `ollama pull llama3.2`, then try it on a few books.
+- [ ] More providers when wanted (a hosted API backend is one small class in `PROVIDERS`).
+- [ ] Tests for `themes.py` (fake provider, parsing/trimming, cache, refresh) once settled.
 
 ## Phase 3: Reader labels and comparison
 
@@ -210,8 +211,8 @@ Goodreads closed its public API to new developers in 2020, and scraping breaks i
 - [ ] **Open Library subjects API** and **Google Books categories:** free, live, legal.
 - [ ] **Gutendex** (Project Gutenberg's API): subjects and bookshelves for Gutenberg texts.
 - [ ] `wfa/labels.py`: look books up by `metadata.title` / `metadata.author` (from Phase 0), normalise the labels.
-- [ ] Score overlap between reader labels and each LLM mode (embedding similarity or a second LLM call as judge).
-- [ ] **Compare tab:** Lotaria mode vs. full read vs. reader labels, side by side. This is the project's headline result.
+- [ ] Score overlap between reader labels and the LLM's themes (e.g. embedding similarity).
+- [ ] **Compare tab:** LLM themes from the top words vs. reader labels, side by side. This is the project's headline result.
 
 ## Phase 4: More from the data (ideas)
 

@@ -18,6 +18,7 @@ dependencies = [
     "textacy>=0.13",
     "streamlit>=1.40",
     "plotly>=5.19",
+    "ollama>=0.4",
 ]
 
 [project.scripts]
