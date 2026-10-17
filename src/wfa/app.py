@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from wfa import analysis, report, themes
+from wfa import analysis, labels, report, themes
 from wfa.cleaning import CleaningOptions
 from wfa.document import Document
 from wfa.loaders import UnsupportedFormatError
@@ -66,7 +66,7 @@ def run() -> None:
         st.divider()
         frequencies_view(doc, settings["lemmatize"])
     with labels_tab:
-        st.info("Reader labels (Open Library, Gutendex, Goodreads dataset) arrive in Phase 3.")
+        labels_view(doc)
     with compare_tab:
         st.info("Side-by-side comparison of word lists, themes and labels arrives in Phases 3–4.")
 
@@ -249,6 +249,46 @@ def themes_view(doc: Document) -> None:
 @st.cache_resource
 def llm_provider() -> themes.Provider:
     return themes.get_provider()
+
+
+def labels_view(doc: Document) -> None:
+    st.subheader("Published labels")
+    st.caption("How the book is categorised on Google Books. Only the title and author below are sent to Google.")
+
+    title, author = labels.search_terms(doc.metadata.title, doc.metadata.author)
+    cols = st.columns([3, 3, 1.6])
+    title = cols[0].text_input("Title", value=title, key=f"label_title_{doc.file_hash}")
+    author = cols[1].text_input("Author", value=author, key=f"label_author_{doc.file_hash}")
+
+    result = labels.cached_lookup(title, author)
+    cols[2].markdown("&nbsp;")  # align the button with the inputs
+    if cols[2].button("Look up on Google Books" if result is None else "Look up again", width="stretch"):
+        with st.spinner("Searching Google Books…"):
+            try:
+                result = labels.lookup(title, author, use_cache=result is None)
+            except labels.LabelError as e:
+                st.error(str(e))
+                return
+    if result is None:
+        return
+
+    left, right = st.columns([1, 5])
+    if result.thumbnail:
+        left.image(result.thumbnail, width=96)
+    with right:
+        byline = ", ".join(result.authors) or "unknown author"
+        st.markdown(f"**{result.title}** · {byline}" + (f" · {result.published[:4]}" if result.published else ""))
+        if result.category_terms:
+            st.markdown(" ".join(f":gray-badge[{t.replace(']', ')')}]" for t in result.category_terms))
+        else:
+            st.caption("No categories listed for this book.")
+        if result.average_rating:
+            st.caption(f"Rated {result.average_rating:g}/5 by {result.ratings_count or 0:,} Google Books users")
+        details = f"Categories pooled from {result.volumes_matched} matching edition(s)"
+        st.caption(details + (f" · [View on Google Books]({result.link})" if result.link else ""))
+    if result.description:
+        with st.expander("Publisher's description"):
+            st.markdown(result.description)
 
 
 def search_results(table: list[analysis.WordRow], query: str) -> None:

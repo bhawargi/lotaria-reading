@@ -203,16 +203,20 @@ The app calls an external LLM (not Claude Code) with **only the top words** of a
 - [ ] More providers when wanted (a hosted API backend is one small class in `PROVIDERS`).
 - [ ] Tests for `themes.py` (fake provider, parsing/trimming, cache, refresh) once settled.
 
-## Phase 3: Reader labels and comparison
+## Phase 3: Published labels (Google Books) and comparison
 
-Goodreads closed its public API to new developers in 2020, and scraping breaks its terms of service. Use these instead:
+Source: **Google Books API** (`volumes` search). Its `categories` are publisher subject categories (e.g. "Fiction / Science Fiction"), plus description and average rating; not user-made shelves.
 
-- [ ] **UCSD Goodreads Book Graph:** research dataset with each book's "popular shelves" (real Goodreads user labels, as of around 2017).
-- [ ] **Open Library subjects API** and **Google Books categories:** free, live, legal.
-- [ ] **Gutendex** (Project Gutenberg's API): subjects and bookshelves for Gutenberg texts.
-- [ ] `wfa/labels.py`: look books up by `metadata.title` / `metadata.author` (from Phase 0), normalise the labels.
-- [ ] Score overlap between reader labels and the LLM's themes (e.g. embedding similarity).
-- [ ] **Compare tab:** LLM themes from the top words vs. reader labels, side by side. This is the project's headline result.
+- [x] `wfa/labels.py`:
+  - `search_terms()` tidies metadata for searching (filename-style titles split into title/author, subtitles dropped).
+  - `lookup(title, author)` via `httpx`: `intitle:` / `inauthor:` query, English, up to 10 results. Best edition chosen by title (+ author) similarity; categories **pooled across all editions that match**, since editions are labelled inconsistently; categories also split into distinct terms ("Fiction", "Science Fiction", …).
+  - Returns `BookLabels` (title, authors, categories, terms, description without HTML, rating, published date, link, thumbnail, editions matched). Cached in `.cache/labels/` per query.
+  - **Only the title and author are sent to Google.** API key from `GOOGLE_BOOKS_API_KEY`; clear messages for quota exhaustion (with how to get a key), bad key, network failure, no match.
+- [x] App **Reader labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges, rating, link, publisher's description in an expander.
+- [ ] **You:** create a free API key (Google Cloud Console → enable *Books API* → Credentials → API key) and `export GOOGLE_BOOKS_API_KEY=...` before `streamlit run app.py`. Keyless requests share a public quota that was already exhausted when tested (HTTP 429), so the live response format is **not yet verified** against the real API.
+- [ ] Score overlap between Google Books categories and the LLM's themes (e.g. embedding similarity).
+- [ ] **Compare tab:** LLM themes from the top words vs. published categories, side by side. This is the project's headline result.
+- [ ] Tests for `labels.py` (stubbed responses: matching, pooling, splitting, errors, cache).
 
 ## Phase 4: More from the data (ideas)
 
