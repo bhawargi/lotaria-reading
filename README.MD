@@ -38,6 +38,33 @@ Before any counting, the text is cleaned: licence headers and footers (e.g. Proj
 - **Google Books** receives the title and author, and only when you press *Look up on Google Books*.
 - Nothing else. Uploaded books and all results are cached locally under `.cache/`.
 
+## Screenshots
+
+<!--
+To add a screenshot: edit this file on GitHub, then drag an image file onto the editor
+on the blank line under the matching heading. GitHub uploads it and inserts the link.
+-->
+
+### Upload page
+
+<!-- screenshot: upload page with the About text -->
+
+### Lotaria's electronic reading and word frequencies
+
+<!-- screenshot: Frequencies tab, themes on top, chart below -->
+
+### Where words appear
+
+<!-- screenshot: dispersion plot -->
+
+### Characters
+
+<!-- screenshot: mentions chart and "who appears with whom" heatmap -->
+
+### Published labels
+
+<!-- screenshot: Google Books categories for a book -->
+
 ## Setup
 
 Requires **Python 3.12**, the version it's tested on (`pyproject.toml` allows 3.12–3.13).
@@ -152,3 +179,7 @@ Lint and format settings live in `pyproject.toml`.
 ## Credits
 
 Built on [spaCy](https://spacy.io), [textacy](https://github.com/chartbeat-labs/textacy), [ftfy](https://github.com/rspeer/python-ftfy), [charset-normalizer](https://github.com/jawah/charset_normalizer), [EbookLib](https://github.com/aerkalov/ebooklib), [Beautiful Soup](https://www.crummy.com/software/BeautifulSoup/), [wordfreq](https://github.com/rspeer/wordfreq), [Streamlit](https://streamlit.io), [Plotly](https://plotly.com/python/), [Ollama](https://ollama.com), [HTTPX](https://www.python-httpx.org) and the [Google Books API](https://developers.google.com/books).
+
+## License
+
+[MIT](LICENSE) © 2024–2026 Bhuvan Hawargi

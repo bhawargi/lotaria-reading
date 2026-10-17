@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "wfa"
 version = "0.1.0"
 description = "Word frequency analysis of books, inspired by Lotaria in Calvino's If on a winter's night a traveler"
 readme = "README.MD"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "charset-normalizer>=3.3",
