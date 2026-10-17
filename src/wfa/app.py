@@ -19,6 +19,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from wfa import analysis, labels, report, themes
+from wfa.config import load_env
 from wfa.cleaning import CleaningOptions
 from wfa.document import Document
 from wfa.loaders import UnsupportedFormatError
@@ -45,6 +46,7 @@ BAR_GAP = 0.3
 
 def run() -> None:
     st.set_page_config(page_title="Word Frequency Analysis", layout="wide")
+    load_env()
 
     book = st.session_state.get("book")
     if book is None:
@@ -279,12 +281,14 @@ def labels_view(doc: Document) -> None:
         byline = ", ".join(result.authors) or "unknown author"
         st.markdown(f"**{result.title}** · {byline}" + (f" · {result.published[:4]}" if result.published else ""))
         if result.category_terms:
-            st.markdown(" ".join(f":gray-badge[{t.replace(']', ')')}]" for t in result.category_terms))
+            st.markdown(" ".join(
+                f":gray-badge[{t.replace(']', ')')} · {result.term_counts.get(t, 1)}]" for t in result.category_terms
+            ))
         else:
             st.caption("No categories listed for this book.")
         if result.average_rating:
             st.caption(f"Rated {result.average_rating:g}/5 by {result.ratings_count or 0:,} Google Books users")
-        details = f"Categories pooled from {result.volumes_matched} matching edition(s)"
+        details = f"Categories from {result.volumes_matched} matching edition(s); the number is how many use each"
         st.caption(details + (f" · [View on Google Books]({result.link})" if result.link else ""))
     if result.description:
         with st.expander("Publisher's description"):

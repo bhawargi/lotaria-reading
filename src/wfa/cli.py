@@ -7,6 +7,7 @@ from pathlib import Path
 
 from wfa import report
 from wfa.cleaning import CleaningOptions
+from wfa.config import load_env
 from wfa.loaders import UnsupportedFormatError
 from wfa.pipeline import PreprocessOptions, preprocess
 from wfa.tokenize import TokenizeOptions
@@ -32,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    load_env()
     options = PreprocessOptions(
         cleaning=CleaningOptions(extra_patterns=args.remove_pattern),
         tokenize=TokenizeOptions(stopwords=args.stopwords, lemmatize=args.lemmatize),

@@ -58,6 +58,7 @@ Pygments==2.21.0
 pyphen==0.18.1
 pytest==9.1.1
 python-dateutil==2.9.0.post0
+python-dotenv==1.2.4
 python-multipart==0.0.32
 referencing==0.37.0
 requests==2.34.2

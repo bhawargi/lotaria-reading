@@ -13,6 +13,8 @@ import hashlib
 import json
 import os
 import re
+import time
+from collections import Counter
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,19 +25,27 @@ API_URL = "https://www.googleapis.com/books/v1/volumes"
 CACHE_DIR = Path(".cache") / "labels"
 MAX_RESULTS = 10
 MIN_TITLE_SIMILARITY = 0.6
-CACHE_VERSION = 1
+MIN_AUTHOR_SIMILARITY = 0.5
+RETRIES = 2          # extra attempts on a 5xx before moving on to the next query
+RETRY_DELAY = 0.5    # seconds, growing per attempt
+CACHE_VERSION = 2
 
 
 class LabelError(RuntimeError):
     """Network failure, quota/key problem, or no match. Message is user-facing."""
 
 
+class _Unavailable(LabelError):
+    """Google answered with a server error even after retries; the next query may still work."""
+
+
 @dataclass
 class BookLabels:
     title: str
     authors: list[str]
-    categories: list[str]          # e.g. ["Fiction / Science Fiction / General"]
+    categories: list[str]          # e.g. ["Fiction / Science Fiction / General"], most editions first
     category_terms: list[str]      # the same, split into distinct terms: ["Fiction", "Science Fiction", ...]
+    term_counts: dict[str, int]    # how many matching editions use each term
     description: str | None
     average_rating: float | None
     ratings_count: int | None
@@ -70,8 +80,13 @@ def lookup(title: str, author: str = "", use_cache: bool = True, cache_dir: Path
 
     api_key = api_key or os.environ.get("GOOGLE_BOOKS_API_KEY")
     seen: list[str] = []
+    unavailable = 0
     for query in _queries(title, author):  # strictest first; stop at the first that yields a match
-        items = _request(query, api_key)
+        try:
+            items = _request(query, api_key)
+        except _Unavailable:
+            unavailable += 1
+            continue
         seen += [i.get("volumeInfo", {}).get("title", "?") for i in items]
         try:
             labels = _best_match(items, title, author)
@@ -80,6 +95,8 @@ def lookup(title: str, author: str = "", use_cache: bool = True, cache_dir: Path
             continue
     else:
         who = f"“{title}”" + (f" by {author}" if author else "")
+        if not seen and unavailable:
+            raise LabelError("Google Books is having trouble right now (server errors). Try again in a minute.")
         if not seen:
             raise LabelError(f"Google Books returned no results for {who}.")
         sample = "; ".join(dict.fromkeys(seen))[:300]
@@ -98,13 +115,16 @@ def cached_lookup(title: str, author: str = "", cache_dir: Path = CACHE_DIR) -> 
 
 def _queries(title: str, author: str) -> list[str]:
     """Search queries from strictest to loosest. Authors are matched by surname only, since
-    catalogues spell full names inconsistently ("Edwin A. Abbott", "Edwin Abbott Abbott")."""
+    catalogues spell full names inconsistently ("Edwin A. Abbott", "Edwin Abbott Abbott").
+    Plain-text queries come last: Google's intitle:/inauthor: operators sometimes return
+    nothing (or server errors) while plain searches work; _best_match filters the noise."""
     surname = re.sub(r"[^\w\s-]", "", author).split()[-1] if author.strip() else ""
     queries = []
     if surname:
         queries.append(f'intitle:"{title}" inauthor:{surname}')
     queries.append(f'intitle:"{title}"')
     queries.append(f"{title} {surname}".strip())
+    queries.append(title)
     return list(dict.fromkeys(queries))
 
 
@@ -112,10 +132,17 @@ def _request(query: str, api_key: str | None) -> list[dict]:
     params = {"q": query, "maxResults": MAX_RESULTS, "printType": "books", "langRestrict": "en"}
     if api_key:
         params["key"] = api_key
-    try:
-        response = httpx.get(API_URL, params=params, timeout=15)
-    except httpx.HTTPError as e:
-        raise LabelError(f"Couldn't reach Google Books: {e}") from e
+    for attempt in range(RETRIES + 1):
+        try:
+            response = httpx.get(API_URL, params=params, timeout=15)
+        except httpx.HTTPError as e:
+            raise LabelError(f"Couldn't reach Google Books: {e}") from e
+        if response.status_code < 500:
+            break
+        if attempt < RETRIES:
+            time.sleep(RETRY_DELAY * (attempt + 1))
+    else:
+        raise _Unavailable(f"Google Books returned HTTP {response.status_code}.")
 
     if response.status_code == 429:
         raise LabelError(
@@ -140,28 +167,35 @@ def _best_match(items: list[dict], title: str, author: str) -> BookLabels:
         info = item.get("volumeInfo", {})
         score = _title_score(title, info.get("title", ""), info.get("subtitle", ""))
         if author:
-            score = 0.7 * score + 0.3 * _author_score(author, info.get("authors", []))
+            author_score = _author_score(author, info.get("authors", []))
+            if info.get("authors") and author_score < MIN_AUTHOR_SIMILARITY:
+                continue  # same title, different author: another book
+            score = 0.7 * score + 0.3 * author_score
         scored.append((score, info))
     matches = [(s, info) for s, info in sorted(scored, key=lambda x: -x[0]) if s >= MIN_TITLE_SIMILARITY]
     if not matches:
         raise LabelError(f"No Google Books match for “{title}”" + (f" by {author}" if author else "") + ".")
 
     best = matches[0][1]
-    categories: list[str] = []
+    category_counts: Counter[str] = Counter()
+    term_counts: Counter[str] = Counter()
     rated = None
     for _, info in matches:
-        for category in info.get("categories", []):
-            if category not in categories:
-                categories.append(category)
+        editions_categories = info.get("categories", [])
+        category_counts.update(set(editions_categories))
+        term_counts.update(set(_split_categories(editions_categories)))
         if rated is None and info.get("ratingsCount"):
             rated = info
+    categories = [c for c, _ in category_counts.most_common()]  # ties keep first-seen order
+    terms = [t for t, _ in term_counts.most_common()]
 
     links = best.get("imageLinks", {})
     return BookLabels(
         title=best.get("title", title),
         authors=best.get("authors", []),
         categories=categories,
-        category_terms=_split_categories(categories),
+        category_terms=terms,
+        term_counts=dict(term_counts),
         description=_strip_html(best.get("description")),
         average_rating=(rated or best).get("averageRating"),
         ratings_count=(rated or best).get("ratingsCount"),

@@ -213,7 +213,9 @@ Source: **Google Books API** (`volumes` search). Its `categories` are publisher 
   - Returns `BookLabels` (title, authors, categories, terms, description without HTML, rating, published date, link, thumbnail, editions matched). Cached in `.cache/labels/` per query.
   - **Only the title and author are sent to Google.** API key from `GOOGLE_BOOKS_API_KEY`; clear messages for quota exhaustion (with how to get a key), bad key, network failure, no match.
 - [x] App **Reader labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges, rating, link, publisher's description in an expander.
-- [ ] **You:** create a free API key (Google Cloud Console → enable *Books API* → Credentials → API key) and `export GOOGLE_BOOKS_API_KEY=...` before `streamlit run app.py`. Keyless requests share a public quota that was already exhausted when tested (HTTP 429), so the live response format is **not yet verified** against the real API.
+- [x] Settings from a gitignored `.env` (`wfa/config.py`, python-dotenv; loaded by the app and the CLI; shell exports win). `.env.example` lists `GOOGLE_BOOKS_API_KEY`, `WFA_LLM_PROVIDER`, `WFA_LLM_MODEL`, `OLLAMA_HOST`.
+- [x] Lookup made robust after a real miss ("Flatland"): queries cascade from title + author surname → title → free text; titles matched on main title / title + subtitle; authors on surname; errors distinguish "no results" from "results, none matched".
+- [ ] **You:** create a free API key (Google Cloud Console → enable *Books API* → Credentials → API key) and put it in `.env` as `GOOGLE_BOOKS_API_KEY=...`. Keyless requests share a public quota that was already exhausted when tested (HTTP 429), so the live response format is **not yet verified** against the real API.
 - [ ] Score overlap between Google Books categories and the LLM's themes (e.g. embedding similarity).
 - [ ] **Compare tab:** LLM themes from the top words vs. published categories, side by side. This is the project's headline result.
 - [ ] Tests for `labels.py` (stubbed responses: matching, pooling, splitting, errors, cache).
