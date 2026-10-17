@@ -1,4 +1,4 @@
-# Word Frequency Analysis
+# Lotaria's Reading
 
 Inspired by the dialogue (*for shits and giggles!*)
 
