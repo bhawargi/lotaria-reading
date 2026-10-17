@@ -19,8 +19,8 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from wfa import analysis, characters, foreign, labels, report, themes
-from wfa.config import load_env
 from wfa.cleaning import CleaningOptions
+from wfa.config import load_env
 from wfa.document import Document
 from wfa.loaders import UnsupportedFormatError
 from wfa.pipeline import PreprocessOptions, preprocess
@@ -38,12 +38,24 @@ ABOUT = (
 # Chart tokens (single series; validated against Streamlit's light and dark backgrounds).
 BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 CHART = {
-    "light": {"bar": "#2a78d6", "text": "#52514e", "muted": "#898781", "grid": "#e1e0d9", "axis": "#c3c2b7",
-              "sequential": [[i / 6, c] for i, c in enumerate(BLUE_RAMP)]},
-    "dark": {"bar": "#3987e5", "text": "#c3c2b7", "muted": "#898781", "grid": "#2c2c2a", "axis": "#383835",
-             "sequential": [[i / 6, c] for i, c in enumerate(reversed(BLUE_RAMP))]},
+    "light": {
+        "bar": "#2a78d6",
+        "text": "#52514e",
+        "muted": "#898781",
+        "grid": "#e1e0d9",
+        "axis": "#c3c2b7",
+        "sequential": [[i / 6, c] for i, c in enumerate(BLUE_RAMP)],
+    },
+    "dark": {
+        "bar": "#3987e5",
+        "text": "#c3c2b7",
+        "muted": "#898781",
+        "grid": "#2c2c2a",
+        "axis": "#383835",
+        "sequential": [[i / 6, c] for i, c in enumerate(reversed(BLUE_RAMP))],
+    },
 }
-BAR_ROW_PX = 26   # height per word; with the gap below, bars stay under 24px thick
+BAR_ROW_PX = 26  # height per word; with the gap below, bars stay under 24px thick
 BAR_GAP = 0.3
 
 
@@ -66,7 +78,7 @@ def run() -> None:
 
     header(doc)
     frequencies_tab, where_tab, characters_tab, labels_tab, compare_tab = st.tabs(
-        ["Frequencies", "Where words appear", "Characters", "Reader labels", "Compare"]
+        ["Frequencies", "Where words appear", "Characters", "Published labels", "Compare"]
     )
     with where_tab:
         dispersion_view(doc, settings["lemmatize"])
@@ -90,7 +102,8 @@ def upload_page() -> None:
     st.subheader("About")
     st.markdown(ABOUT)
     uploaded = st.file_uploader(
-        "Upload a book", type=[ext.lstrip(".") for ext in SUPPORTED],
+        "Upload a book",
+        type=[ext.lstrip(".") for ext in SUPPORTED],
         key=f"uploader_{st.session_state.get('uploads', 0)}",
     )
     if uploaded is not None:
@@ -109,12 +122,16 @@ def sidebar(book_name: str) -> dict:
             st.rerun()
 
         st.header("Processing")
-        stopwords = st.toggle("Remove stop words", value=True,
-                              help="Drop common words like 'the', 'and', 'she' (spaCy's English list).")
-        lemmatize = st.toggle("Count word roots", value=False,
-                              help="Count 'running' and 'ran' as 'run'. Slower the first time per book.")
+        stopwords = st.toggle(
+            "Remove stop words", value=True, help="Drop common words like 'the', 'and', 'she' (spaCy's English list)."
+        )
+        lemmatize = st.toggle(
+            "Count word roots", value=False, help="Count 'running' and 'ran' as 'run'. Slower the first time per book."
+        )
         patterns = st.text_area(
-            "Extra text to remove", value="", height=80,
+            "Extra text to remove",
+            value="",
+            height=80,
             help="One regular expression per line, e.g. a watermark. Removed everywhere in the book.",
         )
 
@@ -168,8 +185,11 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
     cols[0].metric(f"Total {unit}", f"{stats.words:,}")
     cols[1].metric(f"Unique {unit}", f"{stats.unique:,}")
     cols[2].metric("Used once", f"{stats.hapax:,}", help="Words that appear exactly once (hapax legomena).")
-    cols[3].metric("Removed as boilerplate", f"{stats.removed_share:.1%}",
-                   help="Share of the raw text the cleaner removed (licences, front matter, page numbers…).")
+    cols[3].metric(
+        "Removed as boilerplate",
+        f"{stats.removed_share:.1%}",
+        help="Share of the raw text the cleaner removed (licences, front matter, page numbers…).",
+    )
 
     table = analysis.frequency_table(doc, use_lemmas)
     if not table:
@@ -178,15 +198,18 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
 
     controls = st.columns([2, 3, 1.4])
     if len(table) > 10:
-        top_n = controls[0].slider("Words shown", min_value=10, max_value=min(200, len(table)),
-                                   value=min(30, len(table)), step=5)
+        top_n = controls[0].slider(
+            "Words shown", min_value=10, max_value=min(200, len(table)), value=min(30, len(table)), step=5
+        )
     else:
         top_n = len(table)
     query = controls[1].text_input("Find a word", placeholder="e.g. river")
     controls[2].download_button(
-        "Download CSV", data=report.csv_text(doc, use_lemmas),
+        "Download CSV",
+        data=report.csv_text(doc, use_lemmas),
         file_name=f"{report.output_stem(doc)}{'_lemma' if use_lemmas else ''}_word_frequency.csv",
-        mime="text/csv", width="stretch",
+        mime="text/csv",
+        width="stretch",
     )
 
     if query:
@@ -201,15 +224,18 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
     with st.expander(f"All {len(table):,} {unit} as a table"):
         st.dataframe(
             pd.DataFrame([{**asdict(row), "language": languages.get(row.word, "")} for row in table]),
-            hide_index=True, width="stretch",
+            hide_index=True,
+            width="stretch",
             column_config={
                 "rank": st.column_config.NumberColumn("Rank", width="small"),
                 "word": st.column_config.TextColumn("Word"),
                 "count": st.column_config.NumberColumn("Count", format="%d"),
-                "per10k": st.column_config.NumberColumn("Per 10,000", format="%.2f",
-                                                        help="Occurrences per 10,000 words"),
-                "language": st.column_config.TextColumn("Other language",
-                                                        help="Set when the word looks borrowed from another language"),
+                "per10k": st.column_config.NumberColumn(
+                    "Per 10,000", format="%.2f", help="Occurrences per 10,000 words"
+                ),
+                "language": st.column_config.TextColumn(
+                    "Other language", help="Set when the word looks borrowed from another language"
+                ),
             },
         )
 
@@ -234,7 +260,9 @@ def themes_view(doc: Document) -> None:
     preferred = st.session_state.get("theme_model") or os.environ.get("WFA_LLM_MODEL")
     controls = st.columns([3, 1.4, 3])
     model = controls[0].selectbox(
-        "Model", models, index=models.index(preferred) if preferred in models else 0,
+        "Model",
+        models,
+        index=models.index(preferred) if preferred in models else 0,
         help=f"Models available in your local {provider.name} installation.",
     )
     st.session_state["theme_model"] = model
@@ -258,7 +286,9 @@ def themes_view(doc: Document) -> None:
     st.caption(f"{result.model} via {result.provider}, from the top {result.words_sent} words · {result.created[:10]}")
     with st.expander(f"The {len(words)} words shared with the model"):
         st.dataframe(
-            pd.DataFrame(words, columns=["Word", "Count"]), hide_index=True, width="stretch",
+            pd.DataFrame(words, columns=["Word", "Count"]),
+            hide_index=True,
+            width="stretch",
             column_config={"Count": st.column_config.NumberColumn(format="%d")},
         )
 
@@ -296,9 +326,12 @@ def labels_view(doc: Document) -> None:
         byline = ", ".join(result.authors) or "unknown author"
         st.markdown(f"**{result.title}** · {byline}" + (f" · {result.published[:4]}" if result.published else ""))
         if result.category_terms:
-            st.markdown(" ".join(
-                f":gray-badge[{t.replace(']', ')')} · {result.term_counts.get(t, 1)}]" for t in result.category_terms
-            ))
+            st.markdown(
+                " ".join(
+                    f":gray-badge[{t.replace(']', ')')} · {result.term_counts.get(t, 1)}]"
+                    for t in result.category_terms
+                )
+            )
         else:
             st.caption("No categories listed for this book.")
         if result.average_rating:
@@ -334,26 +367,37 @@ def foreign_section(found: list[foreign.ForeignWord]) -> None:
 
 def dispersion_view(doc: Document, use_lemmas: bool) -> None:
     st.subheader("Where words appear")
-    st.caption("Each tick is one use of the word, from the first page (left) to the last (right). "
-               "Faint vertical lines mark where chapters or sections begin.")
+    st.caption(
+        "Each tick is one use of the word, from the first page (left) to the last (right). "
+        "Faint vertical lines mark where chapters or sections begin."
+    )
     table = analysis.frequency_table(doc, use_lemmas, limit=500)
     if not table:
         st.info("No words left after processing.")
         return
     options = [row.word for row in table]
-    chosen = st.multiselect("Words", options, default=options[:5], max_selections=12,
-                            key=f"dispersion_{doc.file_hash}", help="Pick from the 500 most frequent words.")
+    chosen = st.multiselect(
+        "Words",
+        options,
+        default=options[:5],
+        max_selections=12,
+        key=f"dispersion_{doc.file_hash}",
+        help="Pick from the 500 most frequent words.",
+    )
     if not chosen:
         return
     positions = analysis.dispersion(doc, chosen, use_lemmas)
-    st.plotly_chart(dispersion_chart(positions, analysis.section_marks(doc)), width="stretch",
-                    config={"displayModeBar": False})
+    st.plotly_chart(
+        dispersion_chart(positions, analysis.section_marks(doc)), width="stretch", config={"displayModeBar": False}
+    )
 
 
 def characters_view(doc: Document) -> None:
     st.subheader("Characters")
-    st.caption("People named in the book, found by spaCy's entity recognition on this machine. "
-               "It's a small model: expect some misses and the odd non-person.")
+    st.caption(
+        "People named in the book, found by spaCy's entity recognition on this machine. "
+        "It's a small model: expect some misses and the odd non-person."
+    )
     result = characters.cached_result(doc)
     if result is None:
         if not st.button("Find characters", key=f"characters_{doc.file_hash}"):
@@ -366,26 +410,41 @@ def characters_view(doc: Document) -> None:
         return
 
     names = [c.name for c in result.characters]
-    st.plotly_chart(hbar(
-        labels=names, values=[c.mentions for c in result.characters],
-        customdata=[[", ".join(c.aliases) or "—"] for c in result.characters],
-        hovertemplate="<b>%{y}</b><br>%{x:,} mentions<br>also: %{customdata[0]}<extra></extra>",
-        x_title="Mentions",
-    ), width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(
+        hbar(
+            labels=names,
+            values=[c.mentions for c in result.characters],
+            customdata=[[", ".join(c.aliases) or "—"] for c in result.characters],
+            hovertemplate="<b>%{y}</b><br>%{x:,} mentions<br>also: %{customdata[0]}<extra></extra>",
+            x_title="Mentions",
+        ),
+        width="stretch",
+        config={"displayModeBar": False},
+    )
 
     if len(names) > 1:
         st.markdown("**Who appears with whom**")
         st.caption(f"Number of paragraphs (of {result.paragraphs:,}) that name both characters.")
         st.plotly_chart(together_heatmap(names, result.together), width="stretch", config={"displayModeBar": False})
     with st.expander("Names merged into each character"):
-        st.dataframe(pd.DataFrame([{"Character": c.name, "Mentions": c.mentions, "Also written as": ", ".join(c.aliases)}
-                                   for c in result.characters]), hide_index=True, width="stretch")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {"Character": c.name, "Mentions": c.mentions, "Also written as": ", ".join(c.aliases)}
+                    for c in result.characters
+                ]
+            ),
+            hide_index=True,
+            width="stretch",
+        )
 
 
 def search_results(table: list[analysis.WordRow], query: str) -> None:
     exact, partial = analysis.lookup(table, query)
     if exact:
-        st.success(f"**{exact.word}** is #{exact.rank:,}: used {exact.count:,} times ({exact.per10k} per 10,000 words).")
+        st.success(
+            f"**{exact.word}** is #{exact.rank:,}: used {exact.count:,} times ({exact.per10k} per 10,000 words)."
+        )
     else:
         st.info(f"“{query.strip()}” doesn't appear after processing (it may be a stop word, or filtered out).")
     if partial:
@@ -394,7 +453,8 @@ def search_results(table: list[analysis.WordRow], query: str) -> None:
 
 def bar_chart(rows: list[analysis.WordRow], unit: str) -> go.Figure:
     return hbar(
-        labels=[r.word for r in rows], values=[r.count for r in rows],
+        labels=[r.word for r in rows],
+        values=[r.count for r in rows],
         customdata=[[r.rank, r.per10k] for r in rows],
         hovertemplate="<b>%{y}</b><br>#%{customdata[0]}: %{x:,} times<br>%{customdata[1]} per 10,000<extra></extra>",
         x_title="Times used",
@@ -404,11 +464,16 @@ def bar_chart(rows: list[analysis.WordRow], unit: str) -> go.Figure:
 def hbar(labels: list[str], values: list[int], customdata: list, hovertemplate: str, x_title: str) -> go.Figure:
     """Single-series horizontal bar chart in the app's chart style."""
     tokens = chart_tokens()
-    fig = go.Figure(go.Bar(
-        x=values, y=labels, orientation="h",
-        marker=dict(color=tokens["bar"], cornerradius=4),
-        customdata=customdata, hovertemplate=hovertemplate,
-    ))
+    fig = go.Figure(
+        go.Bar(
+            x=values,
+            y=labels,
+            orientation="h",
+            marker=dict(color=tokens["bar"], cornerradius=4),
+            customdata=customdata,
+            hovertemplate=hovertemplate,
+        )
+    )
     _style(fig, tokens, height=max(240, len(labels) * BAR_ROW_PX + 60))
     fig.update_layout(bargap=BAR_GAP)
     fig.update_xaxes(title=dict(text=x_title, font=dict(color=tokens["muted"])), rangemode="tozero", tickformat=",d")
@@ -423,18 +488,26 @@ def dispersion_chart(positions: dict[str, list[float]], marks: list[tuple[float,
     fig = go.Figure()
     for word, xs in positions.items():
         sections = [_section_at(x, marks) for x in xs]
-        fig.add_trace(go.Scattergl(
-            x=[x * 100 for x in xs], y=[word] * len(xs), mode="markers",
-            marker=dict(symbol="line-ns", size=16, line=dict(width=1.5, color=tokens["bar"]), color=tokens["bar"]),
-            customdata=sections,
-            hovertemplate=f"<b>{word}</b><br>%{{x:.1f}}% into the book<br>%{{customdata}}<extra></extra>",
-            showlegend=False,
-        ))
+        fig.add_trace(
+            go.Scattergl(
+                x=[x * 100 for x in xs],
+                y=[word] * len(xs),
+                mode="markers",
+                marker=dict(symbol="line-ns", size=16, line=dict(width=1.5, color=tokens["bar"]), color=tokens["bar"]),
+                customdata=sections,
+                hovertemplate=f"<b>{word}</b><br>%{{x:.1f}}% into the book<br>%{{customdata}}<extra></extra>",
+                showlegend=False,
+            )
+        )
     _style(fig, tokens, height=max(200, len(positions) * 48 + 80))
     for x in starts[1:]:
         fig.add_vline(x=x * 100, line=dict(color=tokens["grid"], width=1))
-    fig.update_xaxes(title=dict(text="Position in the book", font=dict(color=tokens["muted"])),
-                     range=[0, 100], ticksuffix="%", showgrid=False)
+    fig.update_xaxes(
+        title=dict(text="Position in the book", font=dict(color=tokens["muted"])),
+        range=[0, 100],
+        ticksuffix="%",
+        showgrid=False,
+    )
     fig.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=list(positions))
     return fig
 
@@ -443,12 +516,24 @@ def together_heatmap(names: list[str], together: list[list[int]]) -> go.Figure:
     """Who appears with whom: paragraphs naming both characters. Sequential, one hue."""
     tokens = chart_tokens()
     z = [[None if i == j else together[i][j] for j in range(len(names))] for i in range(len(names))]
-    fig = go.Figure(go.Heatmap(
-        z=z, x=names, y=names, colorscale=tokens["sequential"], xgap=2, ygap=2, hoverongaps=False,
-        colorbar=dict(title=dict(text="Paragraphs", font=dict(color=tokens["muted"])),
-                      tickfont=dict(color=tokens["muted"]), outlinewidth=0, thickness=12),
-        hovertemplate="<b>%{y}</b> & <b>%{x}</b><br>together in %{z:,} paragraph(s)<extra></extra>",
-    ))
+    fig = go.Figure(
+        go.Heatmap(
+            z=z,
+            x=names,
+            y=names,
+            colorscale=tokens["sequential"],
+            xgap=2,
+            ygap=2,
+            hoverongaps=False,
+            colorbar=dict(
+                title=dict(text="Paragraphs", font=dict(color=tokens["muted"])),
+                tickfont=dict(color=tokens["muted"]),
+                outlinewidth=0,
+                thickness=12,
+            ),
+            hovertemplate="<b>%{y}</b> & <b>%{x}</b><br>together in %{z:,} paragraph(s)<extra></extra>",
+        )
+    )
     _style(fig, tokens, height=max(320, len(names) * 34 + 160))
     fig.update_xaxes(showgrid=False, tickangle=-35, automargin=True, ticks="")
     fig.update_yaxes(showgrid=False, autorange="reversed", ticks="")
@@ -461,9 +546,12 @@ def chart_tokens() -> dict:
 
 def _style(fig: go.Figure, tokens: dict, height: int) -> None:
     fig.update_layout(
-        height=height, margin=dict(l=8, r=16, t=8, b=40),
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=tokens["text"], size=13), hoverlabel=dict(font_size=13),
+        height=height,
+        margin=dict(l=8, r=16, t=8, b=40),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=tokens["text"], size=13),
+        hoverlabel=dict(font_size=13),
     )
     fig.update_xaxes(gridcolor=tokens["grid"], gridwidth=1, zeroline=False, tickfont=dict(color=tokens["muted"]))
     fig.update_yaxes(automargin=True, ticksuffix="  ", showgrid=False, tickfont=dict(color=tokens["text"]))

@@ -8,7 +8,7 @@ Inspired by the dialogue (*for shits and giggles!*)
 
 ## The idea
 
-In Calvino's novel, Lotaria (the sister of Ludmilla, the Other Reader) doesn't read books so much as process them: a machine turns each one into a list of word frequencies, and a glance at the list tells her what the book is about. The novelist Silas Flannery records her method in his diary with a mixture of fascination and dismay. Calvino plainly means it partly as satire, set against Ludmilla's reading for pleasure.
+In Calvino's novel, Lotaria (the sister of Ludmilla, the Other Reader) doesn't read books so much as process them: a machine turns each one into a list of word frequencies, and a glance at the list tells her what the book is about. The novelist Silas Flannery describes her method in his diary, and Calvino treats it partly as satire, set against Ludmilla's reading for pleasure.
 
 This project takes Lotaria at her word and tests her claim:
 
@@ -27,7 +27,7 @@ Upload an English book (`.txt` or `.epub`) and the app shows:
 | **Frequencies** | *Lotaria's electronic reading*: a local LLM's summary (at most three sentences) and theme words, inferred from the top 100 words alone. Below it: word counts, an interactive chart of the most frequent words, word search, a CSV download, the full table, and **words borrowed from other languages** (*ennui · French*, *sotto voce · Italian*). |
 | **Where words appear** | A dispersion plot: one row per word, a tick for every use from the first page to the last, with chapter boundaries marked. |
 | **Characters** | People named in the book (spaCy entity recognition), how often each is mentioned, and a heatmap of who appears with whom. |
-| **Reader labels** | The book's Google Books categories (ranked by how many editions use each), rating and publisher's description. |
+| **Published labels** | The book's Google Books categories (ranked by how many editions use each), rating and publisher's description. |
 | **Compare** | Coming next: the LLM's themes side by side with the published categories. |
 
 Before any counting, the text is cleaned: licence headers and footers (e.g. Project Gutenberg), front and back matter, copyright notices, watermarks, running headers and page numbers are removed; broken encodings, curly quotes, ligatures and words split across lines are repaired. Contractions (*don't*) and compounds (*well-known*) stay whole; stop words and word roots (*running* → *run*) are optional.
@@ -55,10 +55,10 @@ python -m spacy download en_core_web_sm
 
 ```bash
 ollama serve            # or open the Ollama app
-ollama pull llama3.2    # any chat model works
+ollama pull qwen3.5:4b  # the model used during development; any chat model works
 ```
 
-**For Reader labels**, create a free Google Books API key (Google Cloud Console → enable the *Books API* → Credentials → *Create API key*). Requests without a key share a public quota that is usually exhausted.
+**For Published labels**, create a free Google Books API key (Google Cloud Console → enable the *Books API* → Credentials → *Create API key*). Requests without a key share a public quota that is usually exhausted.
 
 ### Configuration
 
@@ -131,7 +131,15 @@ file ─▶ load ─▶ clean ─▶ normalise ─▶ tokenise ─▶ Document (
 | `labels.py` | Google Books lookup |
 | `app.py`, `cli.py`, `report.py`, `config.py` | Streamlit app, `wfa` command, summaries and CSVs, `.env` loading |
 
-Run the tests with `pytest`.
+## Development
+
+```bash
+pytest                       # tests (synthetic fixtures only; no real books needed)
+ruff check .                 # lint
+ruff format .                # format
+```
+
+Lint and format settings live in `pyproject.toml`.
 
 ## Limitations
 

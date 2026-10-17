@@ -69,7 +69,8 @@ def make_epub(directory, name: str = "novel.epub"):
 
     title_page = chapter("title.xhtml", "Title", "<h1>Synthetic Novel</h1>")
     ch1 = chapter(
-        "ch1.xhtml", "The Beginning",
+        "ch1.xhtml",
+        "The Beginning",
         f"<h2>One</h2><p><span class='dropcap'>W</span>ord one. {ENGLISH}</p><p>Second paragraph.</p>",
     )
     ch2 = chapter("ch2.xhtml", "The Middle", f"<h2>Two</h2><p>Chapter <i>two</i> text. {ENGLISH}</p>")

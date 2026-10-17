@@ -13,6 +13,7 @@ named in the same paragraph. Results are cached on disk per text, model and code
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import re
@@ -33,10 +34,47 @@ TOP_N = 15
 MIN_MENTIONS = 2
 
 TITLES = {
-    "mr", "mrs", "ms", "miss", "mister", "madam", "madame", "dr", "doctor", "sir", "lady", "lord",
-    "dame", "captain", "capt", "colonel", "col", "general", "major", "lieutenant", "professor", "prof",
-    "rev", "reverend", "father", "mother", "brother", "sister", "uncle", "aunt", "king", "queen",
-    "prince", "princess", "duke", "duchess", "count", "countess", "baron", "saint", "st",
+    "mr",
+    "mrs",
+    "ms",
+    "miss",
+    "mister",
+    "madam",
+    "madame",
+    "dr",
+    "doctor",
+    "sir",
+    "lady",
+    "lord",
+    "dame",
+    "captain",
+    "capt",
+    "colonel",
+    "col",
+    "general",
+    "major",
+    "lieutenant",
+    "professor",
+    "prof",
+    "rev",
+    "reverend",
+    "father",
+    "mother",
+    "brother",
+    "sister",
+    "uncle",
+    "aunt",
+    "king",
+    "queen",
+    "prince",
+    "princess",
+    "duke",
+    "duchess",
+    "count",
+    "countess",
+    "baron",
+    "saint",
+    "st",
 }
 
 PARTICLES = {"de", "da", "di", "du", "del", "della", "van", "von", "der", "den", "la", "le", "of", "y"}
@@ -47,13 +85,13 @@ RECLAIMABLE_LABELS = {"ORG", "GPE", "NORP", "FAC", "LOC", "PRODUCT", "WORK_OF_AR
 class Character:
     name: str
     mentions: int
-    aliases: list[str]   # other forms merged into this character
+    aliases: list[str]  # other forms merged into this character
 
 
 @dataclass
 class CharacterResult:
-    characters: list[Character]        # most mentioned first, at most TOP_N
-    together: list[list[int]]          # together[i][j]: paragraphs naming both i and j (i != j)
+    characters: list[Character]  # most mentioned first, at most TOP_N
+    together: list[list[int]]  # together[i][j]: paragraphs naming both i and j (i != j)
     paragraphs: int
 
 
@@ -98,7 +136,7 @@ def find_characters(doc: Document, use_cache: bool = True, cache_dir: Path = CAC
     for names in per_paragraph:
         present = sorted({position[canonical[n]] for n in names if canonical[n] in position})
         for a_i, a in enumerate(present):
-            for b in present[a_i + 1:]:
+            for b in present[a_i + 1 :]:
                 together[a][b] += 1
                 together[b][a] += 1
 
@@ -175,10 +213,8 @@ def _pieces(paragraphs: list[str]):
 def _cache_key(doc: Document) -> str:
     digest = hashlib.sha256(doc.text.encode("utf-8"))
     digest.update(Path(__file__).read_bytes())
-    try:
+    with contextlib.suppress(metadata.PackageNotFoundError):
         digest.update(metadata.version(MODEL).encode())
-    except metadata.PackageNotFoundError:
-        pass
     return digest.hexdigest()
 
 

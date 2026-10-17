@@ -10,6 +10,7 @@ from wfa import cache, cli
 def isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(cache, "DEFAULT_DIR", tmp_path / "cache")
     import wfa.pipeline
+
     monkeypatch.setattr(wfa.pipeline.preprocess, "__defaults__", (None, True, tmp_path / "cache"))
 
 
@@ -25,7 +26,10 @@ def test_processes_several_files_and_writes_csvs(books, tmp_path, capsys):
     assert cli.main([str(p) for p in books] + ["-o", str(out), "--stopwords"]) == 0
 
     csvs = sorted(p.name for p in out.glob("*.csv"))
-    assert csvs == ["A_Test_Book_Being_a_Long_Subtitle_stop_word_frequency.csv", "Synthetic_Novel_stop_word_frequency.csv"]
+    assert csvs == [
+        "A_Test_Book_Being_a_Long_Subtitle_stop_word_frequency.csv",
+        "Synthetic_Novel_stop_word_frequency.csv",
+    ]
     with (out / csvs[0]).open(encoding="utf-8") as f:
         rows = list(csv.reader(f))
     assert rows[0] == ["Rank", "Word", "Frequency", "Per10k"]

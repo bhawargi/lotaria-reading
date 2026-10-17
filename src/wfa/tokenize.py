@@ -24,8 +24,25 @@ CHUNK_CHARS = 100_000  # stay well under spaCy's max_length; chunks split at par
 CONTRACTION_SUFFIXES = {"n't", "'s", "'re", "'ve", "'ll", "'d", "'m", "'"}
 # Words where a following "'s" means "is/has/us", not possession.
 S_CONTRACTION_BASES = {
-    "it", "he", "she", "that", "there", "here", "what", "who", "where", "when", "how",
-    "let", "this", "everyone", "everybody", "nobody", "somebody", "someone", "one",
+    "it",
+    "he",
+    "she",
+    "that",
+    "there",
+    "here",
+    "what",
+    "who",
+    "where",
+    "when",
+    "how",
+    "let",
+    "this",
+    "everyone",
+    "everybody",
+    "nobody",
+    "somebody",
+    "someone",
+    "one",
 }
 HAS_DIGIT = re.compile(r"\d")
 HAS_LETTER = re.compile(r"[^\W\d_]")
@@ -34,11 +51,11 @@ HAS_LETTER = re.compile(r"[^\W\d_]")
 @dataclass
 class TokenizeOptions:
     lowercase: bool = True
-    stopwords: bool = False         # remove English stop words
-    lemmatize: bool = False         # also produce lemmas (loads the full spaCy model)
-    drop_numbers: bool = True       # tokens containing digits
-    drop_punct: bool = True         # tokens with no letters
-    split_possessive: bool = True   # "lincoln's" -> "lincoln"
+    stopwords: bool = False  # remove English stop words
+    lemmatize: bool = False  # also produce lemmas (loads the full spaCy model)
+    drop_numbers: bool = True  # tokens containing digits
+    drop_punct: bool = True  # tokens with no letters
+    split_possessive: bool = True  # "lincoln's" -> "lincoln"
     min_length: int = 1
 
 
@@ -151,9 +168,9 @@ def _join(group: list[Token], options: TokenizeOptions) -> tuple[str, str, list[
     while len(group) > 1 and group[-1].text == "-":
         group = group[:-1]
 
-    if len(group) >= 2 and group[-1].text.lower() in ("'s", "'") and options.split_possessive:
-        if len(group) > 2 or group[0].text.lower() not in S_CONTRACTION_BASES:
-            group = group[:-1]
+    is_possessive = len(group) >= 2 and group[-1].text.lower() in ("'s", "'") and options.split_possessive
+    if is_possessive and (len(group) > 2 or group[0].text.lower() not in S_CONTRACTION_BASES):
+        group = group[:-1]  # "lincoln's" -> "lincoln"; "it's" stays a contraction
 
     pieces = [t.text for t in group]
     if len(group) == 1:
@@ -171,9 +188,7 @@ def _drop_reason(word: str, pieces: list[str], stop_words: set[str], options: To
             return "numbers"
     elif options.drop_punct and not HAS_LETTER.search(word):
         return "punct"
-    if options.stopwords and (
-        word.lower() in stop_words or all(p.lower() in stop_words for p in pieces if p != "-")
-    ):
+    if options.stopwords and (word.lower() in stop_words or all(p.lower() in stop_words for p in pieces if p != "-")):
         return "stopwords"  # "don't" = "do" + "n't", both stop words
     if len(word) < options.min_length:
         return "short"

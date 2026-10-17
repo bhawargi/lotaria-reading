@@ -43,14 +43,16 @@ def test_no_markers_leaves_text_alone():
 
 
 def test_front_and_back_matter_sections_are_dropped_by_title():
-    doc = clean(make_doc(
-        ("Contents", "Chapter One\nChapter Two"),
-        ("Copyright", "Some legal words"),
-        ("Chapter One", prose(3)),
-        ("Chapter Two", prose(3)),
-        ("Also by Ada Author", "Another Novel\nA Third Novel"),
-        ("About the Author", "Ada lives by the sea."),
-    ))
+    doc = clean(
+        make_doc(
+            ("Contents", "Chapter One\nChapter Two"),
+            ("Copyright", "Some legal words"),
+            ("Chapter One", prose(3)),
+            ("Chapter Two", prose(3)),
+            ("Also by Ada Author", "Another Novel\nA Third Novel"),
+            ("About the Author", "Ada lives by the sea."),
+        )
+    )
     assert [s.title for s in doc.sections] == ["Chapter One", "Chapter Two"]
     assert "front_back_section" in rules(doc)
 

@@ -19,7 +19,7 @@ import json
 import os
 import re
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -30,8 +30,8 @@ from wfa.document import Document
 
 CACHE_DIR = Path(".cache") / "themes"
 DEFAULT_TOP_WORDS = 100
-MAX_WORDS = 500          # hard ceiling on what any call can send
-MAX_WORD_LENGTH = 40     # a "word" longer than this isn't a word
+MAX_WORDS = 500  # hard ceiling on what any call can send
+MAX_WORD_LENGTH = 40  # a "word" longer than this isn't a word
 
 WordCounts = list[tuple[str, int]]
 
@@ -47,7 +47,7 @@ class ThemeResult:
     provider: str
     model: str
     words_sent: int
-    created: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    created: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
 
 class Provider(Protocol):
@@ -119,11 +119,8 @@ def get_provider(name: str | None = None) -> Provider:
 def top_words(doc: Document, n: int = DEFAULT_TOP_WORDS) -> WordCounts:
     """Most frequent content words and their counts. Stop words and contractions are always
     excluded here, whatever the app's stop-word toggle says."""
-    rows = [
-        row for row in analysis.frequency_table(doc)
-        if row.word.lower() not in STOP_WORDS and "'" not in row.word
-    ]
-    return [(row.word, row.count) for row in rows[:min(n, MAX_WORDS)]]
+    rows = [row for row in analysis.frequency_table(doc) if row.word.lower() not in STOP_WORDS and "'" not in row.word]
+    return [(row.word, row.count) for row in rows[: min(n, MAX_WORDS)]]
 
 
 def _validate_words(words: WordCounts) -> WordCounts:
@@ -171,8 +168,9 @@ def infer_themes(
     return result
 
 
-def cached_result(words: WordCounts, model: str, provider: str | None = None,
-                  cache_dir: Path = CACHE_DIR) -> ThemeResult | None:
+def cached_result(
+    words: WordCounts, model: str, provider: str | None = None, cache_dir: Path = CACHE_DIR
+) -> ThemeResult | None:
     """The saved answer for these words and model, without calling the provider."""
     if not words:
         return None
@@ -210,7 +208,7 @@ def clean_themes(themes: list) -> list[str]:
         if theme and theme.lower() not in seen:
             seen.add(theme.lower())
             cleaned.append(theme)
-    return cleaned[:prompts.MAX_THEMES]
+    return cleaned[: prompts.MAX_THEMES]
 
 
 # --- Cache ----------------------------------------------------------------

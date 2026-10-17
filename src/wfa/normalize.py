@@ -32,13 +32,13 @@ BLANK_LINES = re.compile(r"\n\s*\n\s*")
 
 @dataclass
 class NormalizeOptions:
-    fix_unicode: bool = True        # ftfy: mojibake, ligatures, width forms, NFKC
-    quotes: bool = True             # curly/angled/low quotes -> ' and "
+    fix_unicode: bool = True  # ftfy: mojibake, ligatures, width forms, NFKC
+    quotes: bool = True  # curly/angled/low quotes -> ' and "
     rejoin_hyphenated: bool = True  # "con-\nspiracy" -> "conspiracy"
-    split_dashes: bool = True       # "word--word", "word—word" -> "word word"
-    strip_emphasis: bool = True     # "_word_", "*word*" -> "word"
+    split_dashes: bool = True  # "word--word", "word—word" -> "word word"
+    strip_emphasis: bool = True  # "_word_", "*word*" -> "word"
     remove_urls_emails: bool = True
-    remove_symbols: bool = True     # ™ © ® ° and other Unicode "symbol" characters
+    remove_symbols: bool = True  # ™ © ® ° and other Unicode "symbol" characters
     bullets: bool = True
 
 

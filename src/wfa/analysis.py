@@ -19,13 +19,13 @@ class WordRow:
 
 @dataclass(frozen=True)
 class BookStats:
-    words: int             # tokens after filtering
+    words: int  # tokens after filtering
     unique: int
-    richness: float        # unique / words (type-token ratio); falls as books get longer
-    hapax: int             # words used exactly once
+    richness: float  # unique / words (type-token ratio); falls as books get longer
+    hapax: int  # words used exactly once
     mean_word_length: float
     sections: int
-    removed_share: float   # share of the raw text the cleaner removed
+    removed_share: float  # share of the raw text the cleaner removed
 
 
 def words(doc: Document, use_lemmas: bool = False) -> list[str]:
@@ -91,4 +91,4 @@ def section_marks(doc: Document) -> list[tuple[float, str | None]]:
     total = len(doc.tokens) or 1
     if not starts or len(starts) != len(doc.sections):
         return []
-    return [(start / total, section.title) for start, section in zip(starts, doc.sections)]
+    return [(start / total, section.title) for start, section in zip(starts, doc.sections, strict=True)]

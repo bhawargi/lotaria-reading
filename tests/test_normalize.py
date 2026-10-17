@@ -15,7 +15,7 @@ from wfa.normalize import NormalizeOptions, normalize, normalize_text
         ("sections--that, a—b, c – d, e - f", "sections that, a b, c d, e f"),
         ("He was _very_ *tired*, said snake_case", "He was very tired, said snake_case"),
         ("Visit https://example.com or mail a@b.org now", "Visit or mail now"),
-        ("zero​width and soft­hyphen", "zerowidth and softhyphen"),
+        ("zero\u200bwidth and soft\u00adhyphen", "zerowidth and softhyphen"),
         ("• first\n• second", "- first\n- second"),
     ],
 )

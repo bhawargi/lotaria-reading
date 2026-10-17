@@ -30,26 +30,77 @@ DEFAULT_MARKERS: list[tuple[str, str]] = [
 
 # Section titles that mark non-book material (matched against the whole, trimmed title).
 DEFAULT_SKIP_TITLES = [
-    r"(?:table of )?contents", r"copyright(?: page)?", r"title page", r"half[- ]title",
-    r"also by .*", r"other (?:books|titles|works) by .*", r"(?:books|titles) by .*",
-    r"praise for .*", r"about the (?:author|authors|publisher|translator)s?",
-    r"acknowledge?ments?", r"colophon", r"imprint", r"credits",
-    r"newsletter.*", r"sign up.*", r"connect with .*", r"reading group guide.*",
-    r"index", r"copyright notice", r"legal notice", r"license", r"licence",
+    r"(?:table of )?contents",
+    r"copyright(?: page)?",
+    r"title page",
+    r"half[- ]title",
+    r"also by .*",
+    r"other (?:books|titles|works) by .*",
+    r"(?:books|titles) by .*",
+    r"praise for .*",
+    r"about the (?:author|authors|publisher|translator)s?",
+    r"acknowledge?ments?",
+    r"colophon",
+    r"imprint",
+    r"credits",
+    r"newsletter.*",
+    r"sign up.*",
+    r"connect with .*",
+    r"reading group guide.*",
+    r"index",
+    r"copyright notice",
+    r"legal notice",
+    r"license",
+    r"licence",
 ]
 
 # Phrases typical of legal, publishing, distribution and transcription notices.
 DEFAULT_NOTICE_CUES = [
-    r"copyright", r"©", r"\(c\)\s*\d{4}", r"all rights reserved", r"\bisbn\b", r"\bissn\b",
-    r"licen[cs]e[ds]?", r"trademark", r"™", r"®", r"permission", r"reproduced",
-    r"published by", r"publisher", r"publishing", r"printed in", r"first (?:published|edition|printing)",
-    r"library of congress", r"catalogu?ing", r"british library", r"\bedition\b",
-    r"https?://", r"www\.", r"\b[\w-]+\.(?:com|org|net|co\.uk)\b", r"e-?books?\b",
-    r"distribut(?:ed|ion|e)", r"terms of (?:use|service)", r"disclaimer", r"warrant(?:y|ies)",
-    r"fictitious", r"resemblance to actual", r"cover (?:design|art|image|illustration)",
-    r"typeset", r"produced by", r"transcri(?:bed|ber|ption)", r"proofread", r"digiti[sz]ed",
-    r"scanned", r"prepared by", r"electronic (?:version|edition)", r"\bdonat(?:e|ion)",
-    r"sold subject to", r"without the prior", r"\bpiracy\b", r"\bunauthori[sz]ed\b",
+    r"copyright",
+    r"©",
+    r"\(c\)\s*\d{4}",
+    r"all rights reserved",
+    r"\bisbn\b",
+    r"\bissn\b",
+    r"licen[cs]e[ds]?",
+    r"trademark",
+    r"™",
+    r"®",
+    r"permission",
+    r"reproduced",
+    r"published by",
+    r"publisher",
+    r"publishing",
+    r"printed in",
+    r"first (?:published|edition|printing)",
+    r"library of congress",
+    r"catalogu?ing",
+    r"british library",
+    r"\bedition\b",
+    r"https?://",
+    r"www\.",
+    r"\b[\w-]+\.(?:com|org|net|co\.uk)\b",
+    r"e-?books?\b",
+    r"distribut(?:ed|ion|e)",
+    r"terms of (?:use|service)",
+    r"disclaimer",
+    r"warrant(?:y|ies)",
+    r"fictitious",
+    r"resemblance to actual",
+    r"cover (?:design|art|image|illustration)",
+    r"typeset",
+    r"produced by",
+    r"transcri(?:bed|ber|ption)",
+    r"proofread",
+    r"digiti[sz]ed",
+    r"scanned",
+    r"prepared by",
+    r"electronic (?:version|edition)",
+    r"\bdonat(?:e|ion)",
+    r"sold subject to",
+    r"without the prior",
+    r"\bpiracy\b",
+    r"\bunauthori[sz]ed\b",
 ]
 
 PAGE_NUMBER = re.compile(r"^\s*(?:page\s*)?\d{1,4}\s*$", re.IGNORECASE)
@@ -70,12 +121,12 @@ class CleaningOptions:
     # Extra regexes for known noise (e.g. a watermark); every match is deleted wherever it occurs.
     extra_patterns: list[str] = field(default_factory=list)
 
-    edge_fraction: float = 0.1     # never scan further than this share of the book from either end
-    prose_run_stop: int = 3        # stop scanning after this many consecutive prose paragraphs
-    prose_min_words: int = 25      # a non-notice paragraph at least this long counts as prose
-    notice_min_cues: int = 2       # cue matches that make a paragraph a notice...
-    notice_short_words: int = 40   # ...or a single cue in a paragraph shorter than this
-    repeat_min: int = 5            # a short line seen this often is a running header/watermark
+    edge_fraction: float = 0.1  # never scan further than this share of the book from either end
+    prose_run_stop: int = 3  # stop scanning after this many consecutive prose paragraphs
+    prose_min_words: int = 25  # a non-notice paragraph at least this long counts as prose
+    notice_min_cues: int = 2  # cue matches that make a paragraph a notice...
+    notice_short_words: int = 40  # ...or a single cue in a paragraph shorter than this
+    repeat_min: int = 5  # a short line seen this often is a running header/watermark
     repeat_max_chars: int = 80
     warn_removed_fraction: float = 0.2
 
@@ -130,15 +181,15 @@ def _strip_markers(doc, options, record):
             section = doc.sections[start_idx]
             match = start_re.search(section.text)
             record("wrapper", section, section.text[: match.end()])
-            section.text = section.text[match.end():]
+            section.text = section.text[match.end() :]
 
         if end_idx is not None:
             section = doc.sections[end_idx]
             match = end_re.search(section.text)
             if match:
-                record("wrapper", section, section.text[match.start():])
+                record("wrapper", section, section.text[match.start() :])
                 section.text = section.text[: match.start()]
-            for section in doc.sections[end_idx + 1:]:
+            for section in doc.sections[end_idx + 1 :]:
                 record("wrapper", section, section.text)
                 section.text = ""
         break  # one wrapper per book
@@ -163,8 +214,7 @@ def _drop_extra_patterns(doc, options, record):
 
 def _drop_page_numbers_and_repeated_lines(doc, options, record):
     counts = Counter(
-        key for section in doc.sections for line in section.text.split("\n")
-        if (key := _repeat_key(line, options))
+        key for section in doc.sections for line in section.text.split("\n") if (key := _repeat_key(line, options))
     )
     repeated = {key for key, n in counts.items() if n >= options.repeat_min}
 
@@ -198,10 +248,7 @@ def _drop_edge_notices(doc, options, record):
     first run of ordinary prose (or at `edge_fraction` of the book). Front and back matter
     is a contiguous block, so nothing past the first real prose is ever touched."""
     cue_re = re.compile("|".join(options.notice_cues), re.IGNORECASE)
-    paragraphs = [
-        [i, part] for i, section in enumerate(doc.sections)
-        for part in re.split(r"(\n\s*\n)", section.text)
-    ]
+    paragraphs = [[i, part] for i, section in enumerate(doc.sections) for part in re.split(r"(\n\s*\n)", section.text)]
     total = _count_words(doc.text)
     if not total:
         return

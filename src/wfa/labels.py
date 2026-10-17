@@ -16,7 +16,7 @@ import re
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -26,8 +26,8 @@ CACHE_DIR = Path(".cache") / "labels"
 MAX_RESULTS = 10
 MIN_TITLE_SIMILARITY = 0.6
 MIN_AUTHOR_SIMILARITY = 0.5
-RETRIES = 2          # extra attempts on a 5xx before moving on to the next query
-RETRY_DELAY = 0.5    # seconds, growing per attempt
+RETRIES = 2  # extra attempts on a 5xx before moving on to the next query
+RETRY_DELAY = 0.5  # seconds, growing per attempt
 CACHE_VERSION = 2
 
 
@@ -43,18 +43,18 @@ class _Unavailable(LabelError):
 class BookLabels:
     title: str
     authors: list[str]
-    categories: list[str]          # e.g. ["Fiction / Science Fiction / General"], most editions first
-    category_terms: list[str]      # the same, split into distinct terms: ["Fiction", "Science Fiction", ...]
-    term_counts: dict[str, int]    # how many matching editions use each term
+    categories: list[str]  # e.g. ["Fiction / Science Fiction / General"], most editions first
+    category_terms: list[str]  # the same, split into distinct terms: ["Fiction", "Science Fiction", ...]
+    term_counts: dict[str, int]  # how many matching editions use each term
     description: str | None
     average_rating: float | None
     ratings_count: int | None
     published: str | None
     link: str | None
     thumbnail: str | None
-    volumes_matched: int           # categories are pooled from this many matching editions
+    volumes_matched: int  # categories are pooled from this many matching editions
     source: str = "Google Books"
-    fetched: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    fetched: str = field(default_factory=lambda: datetime.now(UTC).isoformat(timespec="seconds"))
 
 
 def search_terms(title: str | None, author: str | None) -> tuple[str, str]:
@@ -68,8 +68,9 @@ def search_terms(title: str | None, author: str | None) -> tuple[str, str]:
     return title, author
 
 
-def lookup(title: str, author: str = "", use_cache: bool = True, cache_dir: Path = CACHE_DIR,
-           api_key: str | None = None) -> BookLabels:
+def lookup(
+    title: str, author: str = "", use_cache: bool = True, cache_dir: Path = CACHE_DIR, api_key: str | None = None
+) -> BookLabels:
     title, author = title.strip(), author.strip()
     if not title:
         raise LabelError("Enter a title to look up.")
@@ -147,13 +148,18 @@ def _request(query: str, api_key: str | None) -> list[dict]:
     if response.status_code == 429:
         raise LabelError(
             "Google Books refused the request (daily quota used up). "
-            + ("Your API key's quota is exhausted; try again tomorrow." if api_key else
-               "Requests without an API key share a public quota. Create a free key (Google Cloud "
-               "Console → enable the Books API → Credentials → API key) and set GOOGLE_BOOKS_API_KEY.")
+            + (
+                "Your API key's quota is exhausted; try again tomorrow."
+                if api_key
+                else "Requests without an API key share a public quota. Create a free key (Google Cloud "
+                "Console → enable the Books API → Credentials → API key) and set GOOGLE_BOOKS_API_KEY."
+            )
         )
     if response.status_code in (400, 403):
-        raise LabelError("Google Books rejected the request; check that GOOGLE_BOOKS_API_KEY is valid "
-                         "and the Books API is enabled for it.")
+        raise LabelError(
+            "Google Books rejected the request; check that GOOGLE_BOOKS_API_KEY is valid "
+            "and the Books API is enabled for it."
+        )
     if response.status_code != 200:
         raise LabelError(f"Google Books returned HTTP {response.status_code}.")
     return response.json().get("items", [])

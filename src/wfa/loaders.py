@@ -25,14 +25,31 @@ EPUB_MIMETYPE = b"application/epub+zip"
 SKIPPED_GUIDE_TYPES = {"cover", "toc", "title-page", "copyright-page"}
 
 BLOCK_TAGS = [
-    "p", "div", "br", "hr", "li", "dt", "dd", "tr", "blockquote", "pre",
-    "section", "article", "header", "footer", "aside", "figcaption",
-    "h1", "h2", "h3", "h4", "h5", "h6",
+    "p",
+    "div",
+    "br",
+    "hr",
+    "li",
+    "dt",
+    "dd",
+    "tr",
+    "blockquote",
+    "pre",
+    "section",
+    "article",
+    "header",
+    "footer",
+    "aside",
+    "figcaption",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
 ]
 
-GUTENBERG_START = re.compile(
-    r"^\*{3}\s*START OF (?:THE|THIS) PROJECT GUTENBERG E-?BOOK", re.IGNORECASE | re.MULTILINE
-)
+GUTENBERG_START = re.compile(r"^\*{3}\s*START OF (?:THE|THIS) PROJECT GUTENBERG E-?BOOK", re.IGNORECASE | re.MULTILINE)
 GUTENBERG_FIELDS = {
     "title": "title",
     "author": "author",
@@ -50,10 +67,7 @@ def load(path: str | Path) -> Document:
     path = Path(path)
     raw = path.read_bytes()
     fmt = detect_format(raw, path)
-    if fmt == "epub":
-        doc = _load_epub(path)
-    else:
-        doc = _load_text(raw, path)
+    doc = _load_epub(path) if fmt == "epub" else _load_text(raw, path)
     doc.file_hash = hashlib.sha256(raw).hexdigest()
 
     if not doc.metadata.title:
@@ -146,8 +160,16 @@ def _apply_gutenberg_header(header: str, metadata: Metadata) -> None:
 
 
 LANGUAGE_NAMES = {
-    "english": "en", "french": "fr", "german": "de", "spanish": "es", "italian": "it",
-    "portuguese": "pt", "dutch": "nl", "latin": "la", "finnish": "fi", "swedish": "sv",
+    "english": "en",
+    "french": "fr",
+    "german": "de",
+    "spanish": "es",
+    "italian": "it",
+    "portuguese": "pt",
+    "dutch": "nl",
+    "latin": "la",
+    "finnish": "fi",
+    "swedish": "sv",
 }
 
 

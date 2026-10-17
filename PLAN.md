@@ -4,7 +4,7 @@ The thread tying this together: **test Lotaria's claim.** Can a list of word fre
 
 **Order:** Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 (README, last).
 
-**Status (2026-10-17):** Phases 0–2 working; Phase 3 lookup working against the live API; Phase 4's foreign words, dispersion plot and characters built; README rewritten. Still to do: the Compare tab (the headline result), deferred tests, linting.
+**Status (2026-10-17):** Phases 0–2 working; Phase 3 lookup working against the live API; Phase 4's foreign words, dispersion plot and characters built; README rewritten; codebase linted and formatted with ruff. Still to do: the Compare tab (the headline result) and the deferred tests.
 
 ---
 
@@ -86,25 +86,31 @@ tests/
 ```python
 @dataclass
 class Metadata:
-    title: str | None; author: str | None; language: str | None
-    source: str            # "gutenberg" | "epub" | "plain"
-    extra: dict            # release date, publisher, ...
+    title: str | None
+    author: str | None
+    language: str | None
+    source: str  # "gutenberg" | "epub" | "plain"
+    extra: dict  # release date, publisher, ...
+
 
 @dataclass
 class Section:
-    title: str | None      # chapter heading or EPUB spine/TOC label
-    text: str              # cleaned text, original case kept
+    title: str | None  # chapter heading or EPUB spine/TOC label
+    text: str  # cleaned text, original case kept
+
 
 @dataclass
 class Document:
-    path: str; file_hash: str; format: str
+    path: str
+    file_hash: str
+    format: str
     metadata: Metadata
-    sections: list[Section]   # kept for later dispersion and sentiment-arc plots
-    tokens: list[str]         # lowercased, filtered
+    sections: list[Section]  # kept for later dispersion and sentiment-arc plots
+    tokens: list[str]  # lowercased, filtered
     lemmas: list[str] | None  # when lemmatisation is on
-    stats: dict               # words per stage, removed boilerplate, unique, ...
-    warnings: list[str]       # e.g. "3 image-only pages skipped"
-    removed: list[dict]       # every cleaning cut: {"rule", "section", "text"}
+    stats: dict  # words per stage, removed boilerplate, unique, ...
+    warnings: list[str]  # e.g. "3 image-only pages skipped"
+    removed: list[dict]  # every cleaning cut: {"rule", "section", "text"}
 ```
 
 Cleaned text keeps its **original case** (character detection needs capitalisation later); only `tokens` are lowercased.
@@ -192,7 +198,7 @@ Per section (and section titles); case is preserved. Each step can be switched o
 - [x] **Main view (Frequencies tab) = Themes on top, frequencies directly below** (themes not a separate tab), so the project's question is visible on one screen:
   - [x] **Frequencies:** stat tiles; interactive Plotly bar chart (single series, validated colour for light and dark, ≤ 24 px bars with rounded ends, hairline grid, hover tooltip with rank/count/per-10k); words-shown slider (10–200); word search; CSV download; full table in an expander.
   - [x] **"Lotaria's electronic reading"** section (themes) above the chart, with a one-line caption nodding to Lotaria in Calvino's *If on a winter's night a traveller*
-- [x] **Other tabs:** Reader labels (built in Phase 3), Compare (placeholder until Phase 3 finishes)
+- [x] **Other tabs:** Published labels (built in Phase 3), Compare (placeholder until Phase 3 finishes)
 - [x] `st.cache_data` per (uploaded file, settings) on top of the Phase 0 disk cache.
 - [x] The `wfa` command line stays as the scripted interface; matplotlib and `--plot` removed (the app replaces the chart).
 - [ ] Tests for `analysis.py` and an `AppTest` smoke test, once the app settles.
@@ -225,7 +231,7 @@ Source: **Google Books API** (`volumes` search). Its `categories` are publisher 
   - **Categories pooled across all matching editions** (editions are labelled inconsistently), split into distinct terms, and **ranked by how many editions use each** (`term_counts`), so odd one-off labels (e.g. Flatland filed under "Computers" by one publisher) are visible but clearly outnumbered.
   - Returns `BookLabels` (title, authors, categories, terms, term counts, description without HTML, rating, published date, link, thumbnail, editions matched). Cached in `.cache/labels/` per query (`CACHE_VERSION` invalidates old entries).
   - **Only the title and author are sent to Google.** API key from `GOOGLE_BOOKS_API_KEY`; clear messages for quota exhaustion (with how to get a key), bad key, network failure, Google server trouble, "no results" vs "results, none matched" (listing what was seen).
-- [x] App **Reader labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges with edition counts (e.g. *Fiction · 5*), rating, link, publisher's description in an expander.
+- [x] App **Published labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges with edition counts (e.g. *Fiction · 5*), rating, link, publisher's description in an expander.
 - [x] Settings from a gitignored `.env` (`wfa/config.py`, python-dotenv; loaded by the app and the CLI; shell exports win). `.env.example` lists `GOOGLE_BOOKS_API_KEY`, `WFA_LLM_PROVIDER`, `WFA_LLM_MODEL`, `OLLAMA_HOST`.
 - [x] **You:** API key in `.env`. **Verified live** (Flatland → Fiction · 5, Computers · 1, Mathematics · 1 from 8 editions). Keyless requests share a public quota that is usually exhausted (HTTP 429), so a key is effectively required.
 - [ ] **Next:** score overlap between Google Books category terms and the LLM's themes. Decide the method: exact/stemmed word overlap (simple, local) vs. embedding similarity (catches "seafaring" ≈ "Sea stories", needs a local embedding model).
@@ -268,4 +274,5 @@ Ideas, not scheduled:
 - [ ] Stop tracking the 18 MB `books.zip`: it's listed in `.gitignore` but still tracked (`git rm --cached books.zip`); optionally purge it from history (rewrites history), or publish it as a GitHub release asset.
 - [x] `results/` is gitignored (local output only).
 - [x] `.cache` is gitignored.
-- [ ] Lint and format to make it prod-ready (e.g. `ruff` for lint + format, configured in `pyproject.toml`; optionally `mypy`).
+- [x] Lint and format with `ruff` (config in `pyproject.toml`: 120-char lines, Python 3.12, rules E/F/W/I/UP/B/SIM/RUF/PLE; curly-quote rules RUF001–003 off since that text is intentional). Whole codebase formatted, all checks pass; `ruff` added to the dev extra.
+- [ ] Optional: type checking with `mypy`.

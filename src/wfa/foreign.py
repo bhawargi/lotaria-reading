@@ -20,12 +20,12 @@ from wfa.document import Document
 LANGUAGES = {"fr": "French", "de": "German", "it": "Italian", "es": "Spanish", "pt": "Portuguese", "nl": "Dutch"}
 
 # Zipf scale: 3 ≈ once per million words, 6 ≈ once per thousand.
-MAX_ENGLISH_ZIPF = 4.0   # common English words are never flagged ("ad", "house")
-MIN_OTHER_ZIPF = 3.0     # the word must be reasonably common in the other language
-MIN_MARGIN = 1.0         # ...and at least 10x more common there than in English
+MAX_ENGLISH_ZIPF = 4.0  # common English words are never flagged ("ad", "house")
+MIN_OTHER_ZIPF = 3.0  # the word must be reasonably common in the other language
+MIN_MARGIN = 1.0  # ...and at least 10x more common there than in English
 MIN_LENGTH = 3
 MAX_CAPITALISED_SHARE = 0.5
-CANDIDATE_LIMIT = 5000   # only the most frequent words are checked, for speed
+CANDIDATE_LIMIT = 5000  # only the most frequent words are checked, for speed
 
 WORD = re.compile(r"[^\W\d_]+(?:['-][^\W\d_]+)*")
 SENTENCE_START_CHARS = set(".!?:;\"'")
@@ -35,7 +35,7 @@ SENTENCE_START_CHARS = set(".!?:;\"'")
 class ForeignWord:
     word: str
     count: int
-    language: str        # e.g. "French"
+    language: str  # e.g. "French"
     english_zipf: float
     other_zipf: float
 
