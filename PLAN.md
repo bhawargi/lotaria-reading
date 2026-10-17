@@ -1,8 +1,10 @@
 # Project Plan
 
-The thread tying this together: **test Lotaria's claim.** Can a list of word frequencies tell you what a book is about? We compare an LLM's reading of each book's top words alone (the model **never sees the book's text, title or author**) with the labels real readers give it.
+The thread tying this together: **test Lotaria's claim.** Can a list of word frequencies tell you what a book is about? We compare an LLM's reading of each book's top words alone (the model **never sees the book's text, title or author**) with how the book is published and categorised (Google Books).
 
 **Order:** Phase 0 → Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 (README, last).
+
+**Status (2026-10-17):** Phases 0–2 working; Phase 3 lookup working against the live API; Phase 4's foreign words, dispersion plot and characters built; README rewritten. Still to do: the Compare tab (the headline result), deferred tests, linting.
 
 ---
 
@@ -44,7 +46,7 @@ The thread tying this together: **test Lotaria's claim.** Can a list of word fre
 | Front/back matter, notices, watermarks, running headers, page numbers | No good off-the-shelf option for books | **Write:** generic heuristics + user-supplied patterns |
 | `Document` model, options, pipeline, cache | — | **Write** |
 
-**Python version risk:** the current virtual environment is Python 3.14. spaCy (and therefore textacy) may not have wheels for 3.14 yet. Step 0.1 checks this first. If they're missing, pin the project to Python 3.12/3.13 (simple with `uv`) rather than dropping spaCy.
+**Python version:** resolved by pinning the project to Python 3.12 (spaCy/textacy support); see 0.1.
 
 ### Pipeline
 
@@ -57,18 +59,26 @@ file ─▶ detect & load ─▶ extract ─▶ strip boilerplate ─▶ normali
 ### Package layout
 
 ```
-wfa/
+src/wfa/
   __init__.py
   document.py     # Document / Section / Metadata dataclasses
   loaders.py      # format detection, txt + epub loading, metadata
-  cleaning.py     # Gutenberg stripping (library), watermark + repeated-line filter (ours)
+  cleaning.py     # wrapper markers, front/back matter, notices, watermarks, repeated lines (ours)
   normalize.py    # ftfy + textacy preprocessing pipeline
-  tokenize.py     # spaCy/NLTK wrapper, stop words, token filters
+  tokenize.py     # spaCy wrapper, stop words, token filters
   pipeline.py     # preprocess(path, options) -> Document
   cache.py        # hash-keyed save/load of Documents
-  report.py       # summary statistics for checking real books without reading them
+  report.py       # summary, CSV, removed-text dump
+  cli.py          # `wfa` command
+  analysis.py     # Phase 1: frequency table, lookup, book stats
+  app.py          # Phase 1: Streamlit app
+  themes.py       # Phase 2: LLM themes from (word, count) pairs only
+  prompts.py      # Phase 2: LLM instructions, kept out of the UI
+  labels.py       # Phase 3: Google Books lookup
+  config.py       # .env loading
 tests/
-  fixtures/       # tiny synthetic files written for tests (never copied from books/)
+  helpers.py      # synthetic material written for tests (never copied from books/)
+  test_*.py       # one file per stage
 ```
 
 ### Data model (`document.py`)
@@ -93,7 +103,8 @@ class Document:
     tokens: list[str]         # lowercased, filtered
     lemmas: list[str] | None  # when lemmatisation is on
     stats: dict               # words per stage, removed boilerplate, unique, ...
-    warnings: list[str]       # e.g. "3 image-only pages skipped", "language not supported"
+    warnings: list[str]       # e.g. "3 image-only pages skipped"
+    removed: list[dict]       # every cleaning cut: {"rule", "section", "text"}
 ```
 
 Cleaned text keeps its **original case** (character detection needs capitalisation later); only `tokens` are lowercased.
@@ -103,7 +114,7 @@ Cleaned text keeps its **original case** (character detection needs capitalisati
 **0.1 Scaffold, environment, library check**
 - [x] Move to `pyproject.toml` (`src/` layout); dev dependency `pytest`. `epub2txt` and `matplotlib` stay only until the legacy `main.py` is replaced (0.2 / 0.7).
 - [x] Decided: Python **3.12** (`requires-python = ">=3.12,<3.14"`) for spaCy/textacy support.
-- [ ] Freeze exact versions to `requirements.lock` once the new environment installs cleanly.
+- [x] Exact versions frozen to `requirements.lock` (refreshed whenever dependencies change).
 - [x] Create the `wfa/` package and the `document.py` dataclasses.
 - [x] Delete `epub_handler.py` (dead code, and the source of the `ebooklib` import crash) and `requirements.txt`.
 
@@ -149,11 +160,11 @@ Per section (and section titles); case is preserved. Each step can be switched o
 - [x] `main.py` uses `preprocess()`; `--no-cache` forces reprocessing. A cached 216k-word lemmatised run drops from ~12 s to well under a second.
 
 **0.7 Report & CLI (`report.py`, `cli.py`)**
-- [x] `report.py`: `summary()` (metadata, encoding, words removed per cleaning rule, token counts and drops, top-N words, timing/cache, warnings). This is how a real book gets checked without reading it. Also `write_csv()` (`Word, Frequency, Per10k`, named from the book title), `write_removed()`, and the temporary matplotlib `plot_top_words()`.
-- [x] `cli.py`, installed as the `wfa` command (`main.py` is a shim): several files per run, `-o/--out`, `--stopwords`, `--lemmatize`, `--remove-pattern`, `--top`, `--quiet`, `--no-csv`, `--dump-removed`, `--plot` (now opt-in), `--no-cache`. One bad file is reported without stopping the rest; exit code 1 if any failed.
+- [x] `report.py`: `summary()` (metadata, encoding, words removed per cleaning rule, token counts and drops, top-N words, timing/cache, warnings). This is how a real book gets checked without reading it. Also `write_csv()` (`Word, Frequency, Per10k`, named from the book title), `write_removed()`, and a temporary matplotlib `plot_top_words()` (removed in Phase 1).
+- [x] `cli.py`, installed as the `wfa` command (`main.py` is a shim): several files per run, `-o/--out`, `--stopwords`, `--lemmatize`, `--remove-pattern`, `--top`, `--quiet`, `--no-csv`, `--dump-removed`, `--no-cache` (`--plot` was removed in Phase 1). One bad file is reported without stopping the rest; exit code 1 if any failed.
 - [x] CSV names carry the options (`<title>_stop_lemma_word_frequency.csv`), so variants don't overwrite each other.
 - [x] `text_analyzer.py` and the stale `results/*.csv` (made by the old code) removed.
-- [ ] **You:** run on `books/` and regenerate `results/`, e.g. `wfa books/*.txt books/*.epub --stopwords --dump-removed`, then skim the summaries and `*_removed.txt` files.
+- [x] **You:** ran `wfa` on real books; `results/` is now gitignored (local output only).
 
 **0.8 Tests (synthetic fixtures only)**
 - [x] `tests/helpers.py`: invented prose, a fake Gutenberg file, an EPUB built with ebooklib (spine order ≠ add order, nav page, title page in the guide, image-only page, drop-cap markup), a `make_doc()` factory.
@@ -181,8 +192,8 @@ Per section (and section titles); case is preserved. Each step can be switched o
 - [x] **Main view (Frequencies tab) = Themes on top, frequencies directly below** (themes not a separate tab), so the project's question is visible on one screen:
   - [x] **Frequencies:** stat tiles; interactive Plotly bar chart (single series, validated colour for light and dark, ≤ 24 px bars with rounded ends, hairline grid, hover tooltip with rank/count/per-10k); words-shown slider (10–200); word search; CSV download; full table in an expander.
   - [x] **"Lotaria's electronic reading"** section (themes) above the chart, with a one-line caption nodding to Lotaria in Calvino's *If on a winter's night a traveller*
-- [x] **Other tabs:** Reader labels (placeholder until Phase 3), Compare (placeholder until Phases 3/4)
-- [x] `st.cache_data` per (file, modification time, settings) on top of the Phase 0 disk cache.
+- [x] **Other tabs:** Reader labels (built in Phase 3), Compare (placeholder until Phase 3 finishes)
+- [x] `st.cache_data` per (uploaded file, settings) on top of the Phase 0 disk cache.
 - [x] The `wfa` command line stays as the scripted interface; matplotlib and `--plot` removed (the app replaces the chart).
 - [ ] Tests for `analysis.py` and an `AppTest` smoke test, once the app settles.
 
@@ -196,10 +207,10 @@ The app calls an external LLM (not Claude Code) with **only the top words** of a
   - **Input:** top 100 content words with counts (spaCy stop words and contractions always excluded, whatever the app's toggle). **The model never sees the book's text, title or author**, by construction: `top_words(doc)` is the only place a `Document` is read; `infer_themes()` / `cached_result()` accept only `(word, count)` pairs, validated (single words, ≤ 40 characters, ≤ 500 pairs).
   - **Instructions hidden:** system prompt, user-message template and response schema live in `wfa/prompts.py`, not in the UI; `prompts.VERSION` invalidates cached answers when they change.
   - **Output:** JSON schema passed to the model (`summary`, `themes`), then validated: summary trimmed to 3 sentences, themes de-duplicated, cleaned, max 10.
-  - **Cache:** `.cache/themes/`, keyed by provider + model + exact prompt + schema + `PROMPT_VERSION`. "Run again" refreshes the cached answer.
+  - **Cache:** `.cache/themes/`, keyed by provider + model + the exact word/count pairs + `prompts.VERSION`. "Run again" refreshes the cached answer.
   - Friendly errors: server not running, model not installed, malformed reply.
 - [x] App: **Themes section above the frequency chart**. Model picker (installed Ollama models; `WFA_LLM_MODEL` sets a default), **Find themes** / **Run again** button, summary paragraph + theme badges, provenance line, and an expander listing only the words and counts shared with the model.
-- [ ] **You:** start Ollama (`ollama serve` or the app) and pull a model, e.g. `ollama pull llama3.2`, then try it on a few books.
+- [x] **You:** Ollama running locally and tried on real books; default model set in `.env` (`WFA_LLM_MODEL`).
 - [ ] More providers when wanted (a hosted API backend is one small class in `PROVIDERS`).
 - [ ] Tests for `themes.py` (fake provider, parsing/trimming, cache, refresh) once settled.
 
@@ -209,37 +220,52 @@ Source: **Google Books API** (`volumes` search). Its `categories` are publisher 
 
 - [x] `wfa/labels.py`:
   - `search_terms()` tidies metadata for searching (filename-style titles split into title/author, subtitles dropped).
-  - `lookup(title, author)` via `httpx`: `intitle:` / `inauthor:` query, English, up to 10 results. Best edition chosen by title (+ author) similarity; categories **pooled across all editions that match**, since editions are labelled inconsistently; categories also split into distinct terms ("Fiction", "Science Fiction", …).
-  - Returns `BookLabels` (title, authors, categories, terms, description without HTML, rating, published date, link, thumbnail, editions matched). Cached in `.cache/labels/` per query.
-  - **Only the title and author are sent to Google.** API key from `GOOGLE_BOOKS_API_KEY`; clear messages for quota exhaustion (with how to get a key), bad key, network failure, no match.
-- [x] App **Reader labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges, rating, link, publisher's description in an expander.
+  - `lookup(title, author)` via `httpx`, English, up to 10 results per query. **Query cascade**, stopping at the first match: `intitle:"T" inauthor:Surname` → `intitle:"T"` → `T Surname` → `T`. Plain-text queries matter: Google's `intitle:`/`inauthor:` operators were observed returning 0 results or HTTP 503 while plain searches worked. 5xx responses are retried twice, then the next query is tried.
+  - **Matching:** title on main title (before `:`) / title + subtitle, with all-words containment counting as a full match; author on surname; editions by a different author with the same title are excluded.
+  - **Categories pooled across all matching editions** (editions are labelled inconsistently), split into distinct terms, and **ranked by how many editions use each** (`term_counts`), so odd one-off labels (e.g. Flatland filed under "Computers" by one publisher) are visible but clearly outnumbered.
+  - Returns `BookLabels` (title, authors, categories, terms, term counts, description without HTML, rating, published date, link, thumbnail, editions matched). Cached in `.cache/labels/` per query (`CACHE_VERSION` invalidates old entries).
+  - **Only the title and author are sent to Google.** API key from `GOOGLE_BOOKS_API_KEY`; clear messages for quota exhaustion (with how to get a key), bad key, network failure, Google server trouble, "no results" vs "results, none matched" (listing what was seen).
+- [x] App **Reader labels** tab: title/author fields pre-filled from metadata and editable, **Look up on Google Books** button (on demand), cover thumbnail, category badges with edition counts (e.g. *Fiction · 5*), rating, link, publisher's description in an expander.
 - [x] Settings from a gitignored `.env` (`wfa/config.py`, python-dotenv; loaded by the app and the CLI; shell exports win). `.env.example` lists `GOOGLE_BOOKS_API_KEY`, `WFA_LLM_PROVIDER`, `WFA_LLM_MODEL`, `OLLAMA_HOST`.
-- [x] Lookup made robust after a real miss ("Flatland"): queries cascade from title + author surname → title → free text; titles matched on main title / title + subtitle; authors on surname; errors distinguish "no results" from "results, none matched".
-- [ ] **You:** create a free API key (Google Cloud Console → enable *Books API* → Credentials → API key) and put it in `.env` as `GOOGLE_BOOKS_API_KEY=...`. Keyless requests share a public quota that was already exhausted when tested (HTTP 429), so the live response format is **not yet verified** against the real API.
-- [ ] Score overlap between Google Books categories and the LLM's themes (e.g. embedding similarity).
+- [x] **You:** API key in `.env`. **Verified live** (Flatland → Fiction · 5, Computers · 1, Mathematics · 1 from 8 editions). Keyless requests share a public quota that is usually exhausted (HTTP 429), so a key is effectively required.
+- [ ] **Next:** score overlap between Google Books category terms and the LLM's themes. Decide the method: exact/stemmed word overlap (simple, local) vs. embedding similarity (catches "seafaring" ≈ "Sea stories", needs a local embedding model).
 - [ ] **Compare tab:** LLM themes from the top words vs. published categories, side by side. This is the project's headline result.
 - [ ] Tests for `labels.py` (stubbed responses: matching, pooling, splitting, errors, cache).
 
-## Phase 4: More from the data (ideas)
+## Phase 4: More from the data
+
+- [x] **Words from other languages** (`wfa/foreign.py`, using the local `wordfreq` word lists; processing stays English-only):
+  - Flagged when a word is uncommon in English (Zipf ≤ 4), reasonably common in French, German, Italian, Spanish, Portuguese or Dutch (Zipf ≥ 3), and at least 10× more common there than in English. Borrowings like *ennui*, *sotto voce*, *señor*, *weltanschauung* are caught; naturalised ones (*zeitgeist*, *schadenfreude*) and common English words (*ad*, *house*) are not.
+  - Names skipped: words the book mostly writes capitalised (ignoring line and sentence starts) are treated as names.
+  - Limitation: `wordfreq` has no Latin list; Latin is only caught when it doubles as Italian.
+  - App: "Words from other languages" badges under the frequency chart (word · language · count), and an *Other language* column in the full table.
+- [x] **Dispersion plot** (`analysis.dispersion()`, `analysis.section_marks()`): **Where words appear** tab. One row per chosen word (default: top 5, up to 12 from the top 500), a thin tick per occurrence from start (0%) to end (100%), faint lines where chapters/sections begin, hover shows position and section. The tokeniser now records each section's starting token (`stats["tokenize"]["section_starts"]`).
+- [x] **Characters** (`wfa/characters.py`, spaCy `en_core_web_sm` entity recognition, local): **Characters** tab, on demand (**Find characters**), cached in `.cache/characters/`.
+  - Names tidied (possessive, titles like *Mr*/*Lady* removed, particles like *de*/*van* allowed, ALL-CAPS → Title case); a short form merges into the single fuller name containing it (*Darcy* → *Fitzwilliam Darcy*), but stays separate when ambiguous (*Bennet*).
+  - The small model often tags names as organisations/places; those are reclaimed when they start with a title or match a known person.
+  - Shows a mentions bar chart (top 15, aliases on hover), a **who appears with whom** heatmap (paragraphs naming both; single-hue sequential scale, light and dark), and the merged-names table. Known limitation: the small model still misses some mentions.
+
+Ideas, not scheduled:
 
 - [ ] **Distinctive words** (TF-IDF across the library): what sets this book apart from the others.
-- [ ] **Dispersion plot:** where in the narrative a word appears (uses `Document.sections`).
-- [ ] **Character detection** (spaCy named-entity recognition on the original-case text) and a network of characters appearing near each other.
 - [ ] **Sentiment arc** across the book (Vonnegut's "shapes of stories").
 - [ ] **Zipf's-law plot** and vocabulary richness (type-token ratio) for comparing authors' styles.
 - [ ] **Common phrases** (two- and three-word sequences; textacy has helpers).
 - [ ] Side-by-side comparison of multiple books.
+- [ ] Tests for `foreign.py`, `characters.py` and the dispersion helpers.
 
 ## Phase 5: README
 
-- [ ] Correct reference: Italo Calvino, *If on a winter's night a traveler* (*Se una notte d'inverno un viaggiatore*, 1979; English translation by William Weaver, 1981). Choose "traveler" or "traveller" to match the edition cited.
-- [ ] Identify the character: Lotaria is the sister of Ludmilla (the Other Reader). The quote comes from Silas Flannery's diary, Chapter 8 (check against your copy).
-- [ ] Motivation section: Calvino writes Lotaria's "electronic reading" partly as satire, set against Ludmilla's reading for pleasure. Frame the project as an honest test of Lotaria's claim and report what the Compare tab found.
-- [ ] Usage instructions for the Streamlit app, screenshots, architecture overview, credits for the libraries used.
+- [x] Rewritten `README.MD`:
+  - **Reference:** Italo Calvino, *If on a winter's night a traveller* (*Se una notte d'inverno un viaggiatore*, 1979; English translation by William Weaver, 1981), "traveller" spelling as in the app; Lotaria identified as Ludmilla's sister, her method recorded in Silas Flannery's diary.
+  - **The idea:** an honest test of Lotaria's claim, noting Calvino's satire.
+  - **What it does** (per tab), **what leaves your machine**, setup (Python 3.12, spaCy model, Ollama, Google Books key), `.env` configuration, app and `wfa` usage with all options, architecture diagram and module table, limitations, credits.
+- [ ] **You:** add screenshots of the app (none included, since they'd need a real book open).
+- [ ] Update the README's Compare row and "The idea" once the Compare tab exists and has results.
 
 ## Housekeeping
 
-- [ ] Move the 18 MB `books.zip` out of git (Git LFS or a GitHub release asset).
-- [ ] Decide whether `results/` stays in git (sample outputs) or gets ignored.
-- [ ] Add `.cache/` to `.gitignore`.
-- [ ] Lint with pylint, black, and some others to make it prod ready
+- [ ] Stop tracking the 18 MB `books.zip`: it's listed in `.gitignore` but still tracked (`git rm --cached books.zip`); optionally purge it from history (rewrites history), or publish it as a GitHub release asset.
+- [x] `results/` is gitignored (local output only).
+- [x] `.cache` is gitignored.
+- [ ] Lint and format to make it prod-ready (e.g. `ruff` for lint + format, configured in `pyproject.toml`; optionally `mypy`).

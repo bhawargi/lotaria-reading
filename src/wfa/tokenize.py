@@ -51,7 +51,12 @@ def tokenize(doc: Document, options: TokenizeOptions | None = None) -> Document:
     lemmas: list[str] = []
     dropped = {"stopwords": 0, "numbers": 0, "punct": 0, "short": 0}
 
-    for spacy_doc in nlp.pipe(_chunks(doc), batch_size=8):
+    section_starts = [0] * len(doc.sections)  # token index where each section begins
+    seen_sections: set[int] = set()
+    for spacy_doc, section_idx in nlp.pipe(_chunks(doc), batch_size=8, as_tuples=True):
+        if section_idx not in seen_sections:
+            seen_sections.add(section_idx)
+            section_starts[section_idx] = len(tokens)
         for word, lemma, pieces in _words(spacy_doc, options):
             reason = _drop_reason(word, pieces, stop_words, options)
             if reason:
@@ -67,8 +72,18 @@ def tokenize(doc: Document, options: TokenizeOptions | None = None) -> Document:
         "unique": len(set(tokens)),
         "unique_lemmas": len(set(lemmas)) if options.lemmatize else None,
         "dropped": dropped,
+        "section_starts": _fill_gaps(section_starts, seen_sections),
     }
     return doc
+
+
+def _fill_gaps(starts: list[int], seen: set[int]) -> list[int]:
+    """Sections that produced no chunk start where the next one does (or at the end)."""
+    filled = list(starts)
+    for i in reversed(range(len(filled))):
+        if i not in seen:
+            filled[i] = filled[i + 1] if i + 1 < len(filled) else (max(starts) if starts else 0)
+    return filled
 
 
 @lru_cache(maxsize=2)
@@ -80,23 +95,24 @@ def _pipeline(lemmatize: bool) -> Language:
 
 
 def _chunks(doc: Document):
-    """Yield text pieces under CHUNK_CHARS, never splitting a paragraph unless it alone is too long."""
-    for section in doc.sections:
+    """Yield (text, section index) pieces under CHUNK_CHARS, never splitting a paragraph
+    unless it alone is too long."""
+    for index, section in enumerate(doc.sections):
         buffer: list[str] = []
         size = 0
         for paragraph in section.text.split("\n\n"):
             if size + len(paragraph) > CHUNK_CHARS and buffer:
-                yield "\n\n".join(buffer)
+                yield "\n\n".join(buffer), index
                 buffer, size = [], 0
             while len(paragraph) > CHUNK_CHARS:
                 cut = paragraph.rfind(" ", 0, CHUNK_CHARS)
                 cut = cut if cut > 0 else CHUNK_CHARS
-                yield paragraph[:cut]
+                yield paragraph[:cut], index
                 paragraph = paragraph[cut:]
             buffer.append(paragraph)
             size += len(paragraph) + 2
         if buffer:
-            yield "\n\n".join(buffer)
+            yield "\n\n".join(buffer), index
 
 
 def _words(spacy_doc, options: TokenizeOptions):

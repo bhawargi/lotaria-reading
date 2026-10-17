@@ -71,3 +71,24 @@ def book_stats(doc: Document, use_lemmas: bool = False) -> BookStats:
         sections=len(doc.sections),
         removed_share=(before - after) / before if before else 0.0,
     )
+
+
+def dispersion(doc: Document, targets: list[str], use_lemmas: bool = False) -> dict[str, list[float]]:
+    """Where each target word occurs, as positions from 0 (start of the book) to 1 (end)."""
+    sequence = words(doc, use_lemmas)
+    total = len(sequence) or 1
+    wanted = {t.lower(): t for t in targets}
+    found: dict[str, list[float]] = {t: [] for t in targets}
+    for i, word in enumerate(sequence):
+        if (target := wanted.get(word.lower())) is not None:
+            found[target].append(i / total)
+    return found
+
+
+def section_marks(doc: Document) -> list[tuple[float, str | None]]:
+    """(position 0–1, title) where each section starts, for chapter lines on position charts."""
+    starts = doc.stats.get("tokenize", {}).get("section_starts")
+    total = len(doc.tokens) or 1
+    if not starts or len(starts) != len(doc.sections):
+        return []
+    return [(start / total, section.title) for start, section in zip(starts, doc.sections)]

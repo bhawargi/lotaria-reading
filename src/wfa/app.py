@@ -18,7 +18,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from wfa import analysis, labels, report, themes
+from wfa import analysis, characters, foreign, labels, report, themes
 from wfa.config import load_env
 from wfa.cleaning import CleaningOptions
 from wfa.document import Document
@@ -36,9 +36,12 @@ ABOUT = (
 )
 
 # Chart tokens (single series; validated against Streamlit's light and dark backgrounds).
+BLUE_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 CHART = {
-    "light": {"bar": "#2a78d6", "text": "#52514e", "muted": "#898781", "grid": "#e1e0d9", "axis": "#c3c2b7"},
-    "dark": {"bar": "#3987e5", "text": "#c3c2b7", "muted": "#898781", "grid": "#2c2c2a", "axis": "#383835"},
+    "light": {"bar": "#2a78d6", "text": "#52514e", "muted": "#898781", "grid": "#e1e0d9", "axis": "#c3c2b7",
+              "sequential": [[i / 6, c] for i, c in enumerate(BLUE_RAMP)]},
+    "dark": {"bar": "#3987e5", "text": "#c3c2b7", "muted": "#898781", "grid": "#2c2c2a", "axis": "#383835",
+             "sequential": [[i / 6, c] for i, c in enumerate(reversed(BLUE_RAMP))]},
 }
 BAR_ROW_PX = 26   # height per word; with the gap below, bars stay under 24px thick
 BAR_GAP = 0.3
@@ -62,7 +65,13 @@ def run() -> None:
         return
 
     header(doc)
-    frequencies_tab, labels_tab, compare_tab = st.tabs(["Frequencies", "Reader labels", "Compare"])
+    frequencies_tab, where_tab, characters_tab, labels_tab, compare_tab = st.tabs(
+        ["Frequencies", "Where words appear", "Characters", "Reader labels", "Compare"]
+    )
+    with where_tab:
+        dispersion_view(doc, settings["lemmatize"])
+    with characters_tab:
+        characters_view(doc)
     with frequencies_tab:
         themes_view(doc)
         st.divider()
@@ -185,9 +194,13 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
 
     st.plotly_chart(bar_chart(table[:top_n], unit), width="stretch", config={"displayModeBar": False})
 
+    found = foreign_words_for(doc)
+    foreign_section(found)
+    languages = {f.word: f.language for f in found}
+
     with st.expander(f"All {len(table):,} {unit} as a table"):
         st.dataframe(
-            pd.DataFrame([asdict(row) for row in table]),
+            pd.DataFrame([{**asdict(row), "language": languages.get(row.word, "")} for row in table]),
             hide_index=True, width="stretch",
             column_config={
                 "rank": st.column_config.NumberColumn("Rank", width="small"),
@@ -195,6 +208,8 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
                 "count": st.column_config.NumberColumn("Count", format="%d"),
                 "per10k": st.column_config.NumberColumn("Per 10,000", format="%.2f",
                                                         help="Occurrences per 10,000 words"),
+                "language": st.column_config.TextColumn("Other language",
+                                                        help="Set when the word looks borrowed from another language"),
             },
         )
 
@@ -295,6 +310,78 @@ def labels_view(doc: Document) -> None:
             st.markdown(result.description)
 
 
+def foreign_words_for(doc: Document) -> list[foreign.ForeignWord]:
+    t = doc.stats.get("tokenize", {})
+    return _foreign_cached(f"{doc.file_hash}:{t.get('tokens')}:{t.get('unique')}", doc)
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
+def _foreign_cached(_key: str, _doc: Document) -> list[foreign.ForeignWord]:
+    return foreign.foreign_words(_doc)
+
+
+def foreign_section(found: list[foreign.ForeignWord]) -> None:
+    st.markdown("**Words from other languages**")
+    if not found:
+        st.caption("None spotted.")
+        return
+    st.markdown(" ".join(f":gray-badge[{f.word} · {f.language} · {f.count:,}]" for f in found[:40]))
+    st.caption(
+        "Words much more common in French, German, Italian, Spanish, Portuguese or Dutch than in English "
+        "(per the wordfreq lists). Names are skipped; Latin isn't covered."
+    )
+
+
+def dispersion_view(doc: Document, use_lemmas: bool) -> None:
+    st.subheader("Where words appear")
+    st.caption("Each tick is one use of the word, from the first page (left) to the last (right). "
+               "Faint vertical lines mark where chapters or sections begin.")
+    table = analysis.frequency_table(doc, use_lemmas, limit=500)
+    if not table:
+        st.info("No words left after processing.")
+        return
+    options = [row.word for row in table]
+    chosen = st.multiselect("Words", options, default=options[:5], max_selections=12,
+                            key=f"dispersion_{doc.file_hash}", help="Pick from the 500 most frequent words.")
+    if not chosen:
+        return
+    positions = analysis.dispersion(doc, chosen, use_lemmas)
+    st.plotly_chart(dispersion_chart(positions, analysis.section_marks(doc)), width="stretch",
+                    config={"displayModeBar": False})
+
+
+def characters_view(doc: Document) -> None:
+    st.subheader("Characters")
+    st.caption("People named in the book, found by spaCy's entity recognition on this machine. "
+               "It's a small model: expect some misses and the odd non-person.")
+    result = characters.cached_result(doc)
+    if result is None:
+        if not st.button("Find characters", key=f"characters_{doc.file_hash}"):
+            st.caption("Takes up to a minute or two for a long book the first time; cached afterwards.")
+            return
+        with st.spinner("Reading for names…"):
+            result = characters.find_characters(doc)
+    if not result.characters:
+        st.info("No characters found.")
+        return
+
+    names = [c.name for c in result.characters]
+    st.plotly_chart(hbar(
+        labels=names, values=[c.mentions for c in result.characters],
+        customdata=[[", ".join(c.aliases) or "—"] for c in result.characters],
+        hovertemplate="<b>%{y}</b><br>%{x:,} mentions<br>also: %{customdata[0]}<extra></extra>",
+        x_title="Mentions",
+    ), width="stretch", config={"displayModeBar": False})
+
+    if len(names) > 1:
+        st.markdown("**Who appears with whom**")
+        st.caption(f"Number of paragraphs (of {result.paragraphs:,}) that name both characters.")
+        st.plotly_chart(together_heatmap(names, result.together), width="stretch", config={"displayModeBar": False})
+    with st.expander("Names merged into each character"):
+        st.dataframe(pd.DataFrame([{"Character": c.name, "Mentions": c.mentions, "Also written as": ", ".join(c.aliases)}
+                                   for c in result.characters]), hide_index=True, width="stretch")
+
+
 def search_results(table: list[analysis.WordRow], query: str) -> None:
     exact, partial = analysis.lookup(table, query)
     if exact:
@@ -306,31 +393,89 @@ def search_results(table: list[analysis.WordRow], query: str) -> None:
 
 
 def bar_chart(rows: list[analysis.WordRow], unit: str) -> go.Figure:
-    tokens = CHART["dark" if _theme() == "dark" else "light"]
-    fig = go.Figure(go.Bar(
-        x=[r.count for r in rows],
-        y=[r.word for r in rows],
-        orientation="h",
-        marker=dict(color=tokens["bar"], cornerradius=4),
+    return hbar(
+        labels=[r.word for r in rows], values=[r.count for r in rows],
         customdata=[[r.rank, r.per10k] for r in rows],
         hovertemplate="<b>%{y}</b><br>#%{customdata[0]}: %{x:,} times<br>%{customdata[1]} per 10,000<extra></extra>",
-    ))
-    fig.update_layout(
-        height=max(240, len(rows) * BAR_ROW_PX + 60),
-        bargap=BAR_GAP,
-        margin=dict(l=8, r=16, t=8, b=40),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        font=dict(color=tokens["text"], size=13),
-        hoverlabel=dict(font_size=13),
-        xaxis=dict(title=dict(text="Times used", font=dict(color=tokens["muted"])),
-                   gridcolor=tokens["grid"], gridwidth=1, zeroline=False, rangemode="tozero",
-                   tickfont=dict(color=tokens["muted"]), tickformat=",d"),
-        yaxis=dict(autorange="reversed", automargin=True, ticksuffix="  ", showgrid=False,
-                   showline=True, linecolor=tokens["axis"], linewidth=1,  # the baseline bars grow from
-                   tickfont=dict(color=tokens["text"])),
+        x_title="Times used",
     )
+
+
+def hbar(labels: list[str], values: list[int], customdata: list, hovertemplate: str, x_title: str) -> go.Figure:
+    """Single-series horizontal bar chart in the app's chart style."""
+    tokens = chart_tokens()
+    fig = go.Figure(go.Bar(
+        x=values, y=labels, orientation="h",
+        marker=dict(color=tokens["bar"], cornerradius=4),
+        customdata=customdata, hovertemplate=hovertemplate,
+    ))
+    _style(fig, tokens, height=max(240, len(labels) * BAR_ROW_PX + 60))
+    fig.update_layout(bargap=BAR_GAP)
+    fig.update_xaxes(title=dict(text=x_title, font=dict(color=tokens["muted"])), rangemode="tozero", tickformat=",d")
+    fig.update_yaxes(autorange="reversed", showline=True, linecolor=tokens["axis"], linewidth=1)  # baseline
     return fig
+
+
+def dispersion_chart(positions: dict[str, list[float]], marks: list[tuple[float, str | None]]) -> go.Figure:
+    """One row per word, a thin tick at each occurrence; faint lines where sections start."""
+    tokens = chart_tokens()
+    starts = [m[0] for m in marks]
+    fig = go.Figure()
+    for word, xs in positions.items():
+        sections = [_section_at(x, marks) for x in xs]
+        fig.add_trace(go.Scattergl(
+            x=[x * 100 for x in xs], y=[word] * len(xs), mode="markers",
+            marker=dict(symbol="line-ns", size=16, line=dict(width=1.5, color=tokens["bar"]), color=tokens["bar"]),
+            customdata=sections,
+            hovertemplate=f"<b>{word}</b><br>%{{x:.1f}}% into the book<br>%{{customdata}}<extra></extra>",
+            showlegend=False,
+        ))
+    _style(fig, tokens, height=max(200, len(positions) * 48 + 80))
+    for x in starts[1:]:
+        fig.add_vline(x=x * 100, line=dict(color=tokens["grid"], width=1))
+    fig.update_xaxes(title=dict(text="Position in the book", font=dict(color=tokens["muted"])),
+                     range=[0, 100], ticksuffix="%", showgrid=False)
+    fig.update_yaxes(autorange="reversed", categoryorder="array", categoryarray=list(positions))
+    return fig
+
+
+def together_heatmap(names: list[str], together: list[list[int]]) -> go.Figure:
+    """Who appears with whom: paragraphs naming both characters. Sequential, one hue."""
+    tokens = chart_tokens()
+    z = [[None if i == j else together[i][j] for j in range(len(names))] for i in range(len(names))]
+    fig = go.Figure(go.Heatmap(
+        z=z, x=names, y=names, colorscale=tokens["sequential"], xgap=2, ygap=2, hoverongaps=False,
+        colorbar=dict(title=dict(text="Paragraphs", font=dict(color=tokens["muted"])),
+                      tickfont=dict(color=tokens["muted"]), outlinewidth=0, thickness=12),
+        hovertemplate="<b>%{y}</b> & <b>%{x}</b><br>together in %{z:,} paragraph(s)<extra></extra>",
+    ))
+    _style(fig, tokens, height=max(320, len(names) * 34 + 160))
+    fig.update_xaxes(showgrid=False, tickangle=-35, automargin=True, ticks="")
+    fig.update_yaxes(showgrid=False, autorange="reversed", ticks="")
+    return fig
+
+
+def chart_tokens() -> dict:
+    return CHART["dark" if _theme() == "dark" else "light"]
+
+
+def _style(fig: go.Figure, tokens: dict, height: int) -> None:
+    fig.update_layout(
+        height=height, margin=dict(l=8, r=16, t=8, b=40),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=tokens["text"], size=13), hoverlabel=dict(font_size=13),
+    )
+    fig.update_xaxes(gridcolor=tokens["grid"], gridwidth=1, zeroline=False, tickfont=dict(color=tokens["muted"]))
+    fig.update_yaxes(automargin=True, ticksuffix="  ", showgrid=False, tickfont=dict(color=tokens["text"]))
+
+
+def _section_at(x: float, marks: list[tuple[float, str | None]]) -> str:
+    title = None
+    for start, section_title in marks:
+        if start > x:
+            break
+        title = section_title
+    return title or ""
 
 
 def _theme() -> str:
