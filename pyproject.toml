@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "wfa"
-version = "0.1.0"
+version = "1.0.0"
 description = "Word frequency analysis of books, inspired by Lotaria in Calvino's If on a winter's night a traveler"
 readme = "README.MD"
 license = "MIT"
