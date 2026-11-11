@@ -47,23 +47,31 @@ on the blank line under the matching heading. GitHub uploads it and inserts the 
 
 ### Upload page
 
-<!-- screenshot: upload page with the About text -->
+![Upload page with the About text and a file picker for .txt and .epub books](screenshots/Upload%20Book%20page.png)
 
 ### Lotaria's electronic reading and word frequencies
 
-<!-- screenshot: Frequencies tab, themes on top, chart below -->
+![Frequencies tab with the theme finder, book statistics and a chart of the most frequent words](screenshots/Total%20words.png)
+
+Further down the tab, the rest of the chart and the words borrowed from other languages:
+
+![Lower part of the frequency chart, followed by words from other languages and the full word table](screenshots/Total%20words%202.png)
+
+With *Count word roots* on, forms of a word are counted together, so *said* becomes *say*:
+
+![Frequencies tab with word roots counted, showing say at the top of the chart](screenshots/Total%20words%20Roots%20toggle.png)
 
 ### Where words appear
 
-<!-- screenshot: dispersion plot -->
+![Dispersion plot with one row of ticks per word across the length of the book](screenshots/words%20encountered.png)
 
 ### Characters
 
-<!-- screenshot: mentions chart and "who appears with whom" heatmap -->
+![Chart of character mentions above the start of the who-appears-with-whom heatmap](screenshots/char%20appears.png)
 
 ### Published labels
 
-<!-- screenshot: Google Books categories for a book -->
+![Published labels tab with a Google Books result: cover, category and publisher's description](screenshots/GBOOKS%20Labels.png)
 
 ## Setup
 
