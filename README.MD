@@ -28,7 +28,7 @@ Upload an English book (`.txt` or `.epub`) and the app shows:
 | **Where words appear** | A dispersion plot: one row per word, a tick for every use from the first page to the last, with chapter boundaries marked. |
 | **Characters** | People named in the book (spaCy entity recognition), how often each is mentioned, and a heatmap of who appears with whom. |
 | **Published labels** | The book's Google Books categories (ranked by how many editions use each), rating and publisher's description. |
-| **Compare** | Coming next: the LLM's themes side by side with the published categories. |
+| **Compare** | The LLM's summary and themes side by side with the published categories and description. |
 
 Before any counting, the text is cleaned: licence headers and footers (e.g. Project Gutenberg), front and back matter, copyright notices, watermarks, running headers and page numbers are removed; broken encodings, curly quotes, ligatures and words split across lines are repaired. Contractions (*don't*) and compounds (*well-known*) stay whole; stop words and word roots (*running* → *run*) are optional.
 
@@ -51,6 +51,12 @@ on the blank line under the matching heading. GitHub uploads it and inserts the 
 
 ### Lotaria's electronic reading and word frequencies
 
+A local model's reading of *Flatland*, made without the web from the book's top 100 words:
+
+![Frequencies tab showing the model's summary and theme words for Flatland](screenshots/Models%20summary%20no%20web.png)
+
+Below the reading, the book's statistics and most frequent words:
+
 ![Frequencies tab with the theme finder, book statistics and a chart of the most frequent words](screenshots/Total%20words.png)
 
 Further down the tab, the rest of the chart and the words borrowed from other languages:
@@ -72,6 +78,10 @@ With *Count word roots* on, forms of a word are counted together, so *said* beco
 ### Published labels
 
 ![Published labels tab with a Google Books result: cover, category and publisher's description](screenshots/GBOOKS%20Labels.png)
+
+### Compare
+
+![Compare tab with the model's summary and themes beside the Google Books categories and description for Flatland](screenshots/compare%20page.png)
 
 ## Setup
 

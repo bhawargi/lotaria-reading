@@ -85,13 +85,13 @@ def run() -> None:
     with characters_tab:
         characters_view(doc)
     with frequencies_tab:
-        themes_view(doc)
+        reading = themes_view(doc)
         st.divider()
         frequencies_view(doc, settings["lemmatize"])
     with labels_tab:
-        labels_view(doc)
-    with compare_tab:
-        st.info("Side-by-side comparison of word lists, themes and labels arrives in Phases 3–4.")
+        published = labels_view(doc)
+    with compare_tab:  # last, so a button pressed on another tab shows here in the same run
+        compare_view(reading, published)
 
 
 # --- Upload page and sidebar ----------------------------------------------
@@ -240,7 +240,7 @@ def frequencies_view(doc: Document, use_lemmas: bool) -> None:
         )
 
 
-def themes_view(doc: Document) -> None:
+def themes_view(doc: Document) -> themes.ThemeResult | None:
     st.subheader("Lotaria's electronic reading")
     st.caption(
         "Inspired by Lotaria, the mad machine-reader of Calvino's *If on a winter's night a traveller*. "
@@ -252,10 +252,10 @@ def themes_view(doc: Document) -> None:
         models = provider.available_models()
     except themes.ThemeError as e:
         st.warning(str(e))
-        return
+        return None
     if not models:
         st.info(f"No models installed in {provider.name}. Pull one, e.g. `ollama pull llama3.2`, then reload.")
-        return
+        return None
 
     preferred = st.session_state.get("theme_model") or os.environ.get("WFA_LLM_MODEL")
     controls = st.columns([3, 1.4, 3])
@@ -276,13 +276,13 @@ def themes_view(doc: Document) -> None:
                 result = themes.infer_themes(words, model, provider, refresh=result is not None)
             except themes.ThemeError as e:
                 st.error(str(e))
-                return
+                return result
 
     if result is None:
-        return
+        return None
     st.markdown(result.summary)
     if result.themes:
-        st.markdown(" ".join(f":gray-badge[{t.replace(']', ')')}]" for t in result.themes))
+        st.markdown(theme_badges(result))
     st.caption(f"{result.model} via {result.provider}, from the top {result.words_sent} words · {result.created[:10]}")
     with st.expander(f"The {len(words)} words shared with the model"):
         st.dataframe(
@@ -291,6 +291,7 @@ def themes_view(doc: Document) -> None:
             width="stretch",
             column_config={"Count": st.column_config.NumberColumn(format="%d")},
         )
+    return result
 
 
 @st.cache_resource
@@ -298,7 +299,7 @@ def llm_provider() -> themes.Provider:
     return themes.get_provider()
 
 
-def labels_view(doc: Document) -> None:
+def labels_view(doc: Document) -> labels.BookLabels | None:
     st.subheader("Published labels")
     st.caption("How the book is categorised on Google Books. Only the title and author below are sent to Google.")
 
@@ -315,9 +316,9 @@ def labels_view(doc: Document) -> None:
                 result = labels.lookup(title, author, use_cache=result is None)
             except labels.LabelError as e:
                 st.error(str(e))
-                return
+                return result
     if result is None:
-        return
+        return None
 
     left, right = st.columns([1, 5])
     if result.thumbnail:
@@ -326,12 +327,7 @@ def labels_view(doc: Document) -> None:
         byline = ", ".join(result.authors) or "unknown author"
         st.markdown(f"**{result.title}** · {byline}" + (f" · {result.published[:4]}" if result.published else ""))
         if result.category_terms:
-            st.markdown(
-                " ".join(
-                    f":gray-badge[{t.replace(']', ')')} · {result.term_counts.get(t, 1)}]"
-                    for t in result.category_terms
-                )
-            )
+            st.markdown(category_badges(result))
         else:
             st.caption("No categories listed for this book.")
         if result.average_rating:
@@ -341,6 +337,49 @@ def labels_view(doc: Document) -> None:
     if result.description:
         with st.expander("Publisher's description"):
             st.markdown(result.description)
+    return result
+
+
+def compare_view(reading: themes.ThemeResult | None, published: labels.BookLabels | None) -> None:
+    st.subheader("Compare")
+    st.caption(
+        "What an LLM guessed from word counts alone, beside how the book is published. "
+        "Both come from the other tabs; nothing new is sent anywhere."
+    )
+    left, right = st.columns(2)
+    with left:
+        st.markdown("**Lotaria's electronic reading**")
+        if reading is None:
+            st.info("Nothing yet. Press *Find themes* on the Frequencies tab.")
+        else:
+            st.markdown(reading.summary)
+            if reading.themes:
+                st.markdown(theme_badges(reading))
+            st.caption(f"{reading.model} via {reading.provider}, from the top {reading.words_sent} words")
+    with right:
+        st.markdown("**As published**")
+        if published is None:
+            st.info("Nothing yet. Press *Look up on Google Books* on the Published labels tab.")
+        else:
+            if published.category_terms:
+                st.markdown(category_badges(published))
+            else:
+                st.caption("No categories listed for this book.")
+            if published.description:
+                st.markdown(published.description)
+            else:
+                st.caption("No publisher's description listed for this book.")
+            st.caption(f"{published.source}: {published.title}, {published.volumes_matched} matching edition(s)")
+
+
+def theme_badges(result: themes.ThemeResult) -> str:
+    return " ".join(f":gray-badge[{t.replace(']', ')')}]" for t in result.themes)
+
+
+def category_badges(result: labels.BookLabels) -> str:
+    return " ".join(
+        f":gray-badge[{t.replace(']', ')')} · {result.term_counts.get(t, 1)}]" for t in result.category_terms
+    )
 
 
 def foreign_words_for(doc: Document) -> list[foreign.ForeignWord]:
